@@ -5,3 +5,12 @@ yarn-debug.log*
 yarn-error.log*
 .DS_Store
 Thumbs.db
+
+# Android build outputs and caches
+.gradle/
+build/
+**/build/
+local.properties
+*.iml
+.idea/
+

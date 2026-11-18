@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="180dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="16dp"
+    android:background="@drawable/tv_card_selector"
+    android:clickable="true"
+    android:focusable="true"
+    android:orientation="vertical"
+    android:padding="6dp">
+
+    <!-- Card Poster -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="220dp">
+
+        <ImageView
+            android:id="@+id/ivTvPoster"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="Poster"
+            android:scaleType="centerCrop"
+            tools:src="@color/tv_card_stroke" />
+
+        <!-- Top Badges -->
+        <TextView
+            android:id="@+id/tvTvFormatBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            android:background="#D9000000"
+            android:fontFamily="sans-serif-bold"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:textColor="@color/tv_focus_cyan"
+            android:textSize="10sp"
+            tools:text="1080p TV" />
+
+        <TextView
+            android:id="@+id/tvTvScore"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_margin="8dp"
+            android:background="#D9000000"
+            android:fontFamily="sans-serif-bold"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:textColor="@color/tv_gold"
+            android:textSize="10sp"
+            tools:text="★ 87%" />
+    </FrameLayout>
+
+    <!-- Meta Info -->
+    <TextView
+        android:id="@+id/tvTvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:ellipsize="end"
+        android:fontFamily="sans-serif-medium"
+        android:maxLines="2"
+        android:paddingHorizontal="4dp"
+        android:textColor="@color/tv_text_primary"
+        android:textSize="12sp"
+        tools:text="Demon Slayer: Hashira Training Arc" />
+</LinearLayout>

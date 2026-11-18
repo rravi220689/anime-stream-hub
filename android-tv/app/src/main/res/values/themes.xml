@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AniStreamTv" parent="Theme.Leanback">
+        <item name="colorPrimary">@color/tv_focus_cyan</item>
+        <item name="colorPrimaryDark">@color/tv_bg</item>
+        <item name="colorAccent">@color/tv_focus_purple</item>
+        <item name="android:windowBackground">@color/tv_bg</item>
+    </style>
+</resources>

@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- Fullscreen Player Elements -->
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/tvExoPlayer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:resize_mode="fit"
+        app:use_controller="false" />
+
+    <WebView
+        android:id="@+id/tvPlayerWebView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <ProgressBar
+        android:id="@+id/tvPlayerLoading"
+        android:layout_width="54dp"
+        android:layout_height="54dp"
+        android:layout_gravity="center"
+        android:indeterminateTint="@color/tv_focus_cyan"
+        android:visibility="gone" />
+
+    <!-- Big Screen TV Player HUD Controls Overlay (Fade In/Out on Remote Interaction) -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/tvControlsOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#99000000"
+        android:padding="32dp">
+
+        <!-- Top Title Bar -->
+        <LinearLayout
+            android:id="@+id/tvPlayerTop"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <Button
+                android:id="@+id/btnTvBack"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:background="@drawable/tv_button_selector"
+                android:focusable="true"
+                android:text="← Exit"
+                android:textAllCaps="false"
+                android:textColor="@color/tv_text_primary" />
+
+            <TextView
+                android:id="@+id/tvTvPlayerTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="24dp"
+                android:layout_weight="1"
+                android:fontFamily="sans-serif-bold"
+                android:textColor="@color/tv_text_primary"
+                android:textSize="20sp"
+                tools:text="One Piece Episode 1 • HD Sub" />
+        </LinearLayout>
+
+        <!-- Center Remote Transport Controls -->
+        <LinearLayout
+            android:id="@+id/tvCenterControls"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="horizontal"
+            app:layout_constraintBottom_toTopOf="@id/tvPlayerBottom"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/tvPlayerTop">
+
+            <Button
+                android:id="@+id/btnTvRewind"
+                android:layout_width="110dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="16dp"
+                android:background="@drawable/tv_button_selector"
+                android:focusable="true"
+                android:fontFamily="sans-serif-bold"
+                android:text="⏪ -10s"
+                android:textAllCaps="false"
+                android:textColor="@color/tv_text_primary" />
+
+            <Button
+                android:id="@+id/btnTvPlayPause"
+                android:layout_width="140dp"
+                android:layout_height="52dp"
+                android:background="@drawable/tv_button_selector"
+                android:focusable="true"
+                android:fontFamily="sans-serif-black"
+                android:text="⏸ Pause"
+                android:textAllCaps="false"
+                android:textColor="@color/tv_text_primary"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/btnTvForward"
+                android:layout_width="110dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="16dp"
+                android:background="@drawable/tv_button_selector"
+                android:focusable="true"
+                android:fontFamily="sans-serif-bold"
+                android:text="+10s ⏩"
+                android:textAllCaps="false"
+                android:textColor="@color/tv_text_primary" />
+        </LinearLayout>
+
+        <!-- Bottom Episode & Server Controls -->
+        <LinearLayout
+            android:id="@+id/tvPlayerBottom"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintBottom_toBottomOf="parent">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:text="Switch Episodes (D-pad Left / Right)"
+                android:textColor="@color/tv_focus_cyan"
+                android:textSize="13sp" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvTvEpisodes"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:clipToPadding="false"
+                android:orientation="horizontal"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+        </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</FrameLayout>

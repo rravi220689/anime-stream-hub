@@ -161,19 +161,59 @@ The application includes production-optimized containerization using multi-stage
 
 ---
 
+## 📱 Subprojects: Native Android & Android TV Apps
+
+In addition to the responsive Web app, this repository contains **two dedicated native Android subprojects**:
+
+### 1. 📱 AniStream Mobile (`android-app/`)
+- **Package**: `com.anistream.mobile`
+- **Target**: Android phones & tablets (SDK 24 - 34)
+- **Features**: Bottom navigation, cartoon category chips, offline watchlist, ExoPlayer Media3 player with PiP (Picture-in-Picture), and multi-resolution Download Manager (1080p, 720p, 480p, MP3).
+- **Build APK**:
+  ```bash
+  cd android-app && JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleDebug
+  ```
+  Output: `android-app/app/build/outputs/apk/debug/app-debug.apk`
+
+### 2. 📺 AniStream TV (`android-tv/`)
+- **Package**: `com.anistream.tv`
+- **Target**: Android TV, Google TV & Fire TV (SDK 24 - 34)
+- **Features**: 10-foot Leanback UI, D-pad remote navigation with focus scaling & glowing borders, dynamic Spotlight hero banner, 4 horizontal category rails, and remote-friendly fullscreen TV player with D-pad play/pause/seek controls.
+- **Build APK**:
+  ```bash
+  cd android-tv && JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleDebug
+  ```
+  Output: `android-tv/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## 📂 Project Architecture
 
 ```
 anime-stream-hub/
-├── package.json          # Dependencies & scripts
+├── package.json          # Web backend dependencies & scripts
 ├── server.js             # Express backend (AniList API, YouTube Scraper, Stream Resolvers)
+├── Dockerfile            # Container deployment configuration
+├── docker-compose.yml    # Multi-container orchestration
 ├── README.md             # Documentation
-└── public/
-    ├── index.html        # Mobile-first responsive HTML5 layout & modal containers
-    ├── css/
-    │   └── style.css     # CSS custom variables, glassmorphism, responsive grid & media queries
-    └── js/
-        └── app.js        # SPA client controller, HLS player, server switcher, downloads & storage
+├── public/               # Web client SPA
+│   ├── index.html        # Responsive HTML5 layout
+│   ├── css/style.css     # Glassmorphism & auto-adjusting responsive grid
+│   └── js/app.js         # Client controller, HLS player & download triggers
+├── android-app/          # 📱 Standalone Android Phone/Tablet Subproject
+│   ├── build.gradle      # Root Gradle script for mobile app
+│   ├── settings.gradle
+│   ├── gradlew
+│   └── app/
+│       ├── build.gradle  # Mobile app build config & ExoPlayer dependencies
+│       └── src/main/     # Java code, layouts, and drawables
+└── android-tv/           # 📺 Standalone Android TV Subproject
+    ├── build.gradle      # Root Gradle script for TV app
+    ├── settings.gradle
+    ├── gradlew
+    └── app/
+        ├── build.gradle  # TV app build config & Leanback UI dependencies
+        └── src/main/     # Java code, TV rails, D-pad remote handlers
 ```
 
 ---

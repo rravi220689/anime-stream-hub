@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tv_bg">#080B12</color>
+    <color name="tv_surface">#101624</color>
+    <color name="tv_card">#161F33</color>
+    <color name="tv_card_stroke">#25324E</color>
+    <color name="tv_focus_cyan">#00F0FF</color>
+    <color name="tv_focus_purple">#8B5CF6</color>
+    <color name="tv_text_primary">#FFFFFF</color>
+    <color name="tv_text_secondary">#A0AEC0</color>
+    <color name="tv_text_muted">#718096</color>
+    <color name="tv_gold">#FFB800</color>
+    <color name="transparent">#00000000</color>
+    <color name="overlay_black_70">#B3000000</color>
+</resources>

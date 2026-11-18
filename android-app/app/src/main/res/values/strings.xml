@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AniStream Hub</string>
+    <string name="tab_home">Home</string>
+    <string name="tab_cartoons">Cartoons</string>
+    <string name="tab_movies">Movies</string>
+    <string name="tab_watchlist">Watchlist</string>
+    <string name="search_hint">Search anime, cartoons, series...</string>
+    <string name="download">Download</string>
+    <string name="download_quality">Download Formats</string>
+    <string name="watch_now">Watch Now</string>
+    <string name="save_watchlist">Save to Watchlist</string>
+    <string name="server_settings">Server Settings</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="server_url_hint">http://10.0.2.2:5050</string>
+</resources>

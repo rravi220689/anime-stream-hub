@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="6dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground"
+    app:cardBackgroundColor="@color/surface_card"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="2dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Poster Thumbnail -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="190dp">
+
+            <ImageView
+                android:id="@+id/ivPoster"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="Poster"
+                android:scaleType="centerCrop"
+                tools:src="@color/surface_card_stroke" />
+
+            <!-- Dark gradient overlay at bottom of poster -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:layout_gravity="bottom"
+                android:background="@drawable/poster_gradient" />
+
+            <!-- Format Badge (Top Left) -->
+            <TextView
+                android:id="@+id/tvFormatBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:background="@drawable/bg_pill"
+                android:fontFamily="sans-serif-bold"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="3dp"
+                android:text="TV"
+                android:textColor="@color/accent_cyan"
+                android:textSize="10sp" />
+
+            <!-- Rating Score (Top Right) -->
+            <LinearLayout
+                android:id="@+id/scoreContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:layout_margin="8dp"
+                android:background="#B3090D16"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="3dp">
+
+                <ImageView
+                    android:layout_width="12dp"
+                    android:layout_height="12dp"
+                    android:src="@drawable/ic_star" />
+
+                <TextView
+                    android:id="@+id/tvScore"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="3dp"
+                    android:fontFamily="sans-serif-bold"
+                    android:text="85%"
+                    android:textColor="#F59E0B"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+            <!-- Play Overlay Icon -->
+            <ImageView
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_pill"
+                android:padding="8dp"
+                android:src="@drawable/ic_play"
+                app:tint="@color/text_primary" />
+        </FrameLayout>
+
+        <!-- Card Meta Info -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="10dp">
+
+            <TextView
+                android:id="@+id/tvTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="2"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                tools:text="One Piece: Egghead Island Arc" />
+
+            <TextView
+                android:id="@+id/tvSubInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_muted"
+                android:textSize="11sp"
+                tools:text="1120 Episodes • Action, Adventure" />
+        </LinearLayout>
+    </LinearLayout>
+</androidx.cardview.widget.CardView>
