@@ -2,6 +2,11 @@
 
 > **A Mobile-First, Responsive Streaming & Download Hub for Animations, Cartoons, Series, Movies & YouTube Videos.**
 
+[![GitHub Repo](https://img.shields.io/badge/GitHub-rravi220689%2Fanime--stream--hub-blue?logo=github)](https://github.com/rravi220689/anime-stream-hub)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](Dockerfile)
+[![Node.js](https://img.shields.io/badge/Node.js-22.x-green?logo=node.js)](package.json)
+[![License: ISC](https://img.shields.io/badge/License-ISC-yellow.svg)](LICENSE)
+
 AniStream HUB is a modern web application engineered to aggregate, stream, and download animations and cartoons from diverse sources (such as Gogoanime, Animepahe, YouTube, VidSrc, and direct MP4/M3U8 streams) with responsive auto-adjustment across mobile phones, tablets, foldables, laptops, and ultra-wide displays.
 
 ---
@@ -80,7 +85,58 @@ AniStream HUB is a modern web application engineered to aggregate, stream, and d
 
 ---
 
-## 🚀 Quick Start Guide
+## 🐳 Docker Deployment
+
+The application includes production-optimized containerization using multi-stage Alpine images with built-in health checks and non-root security.
+
+### Option A: Using Docker Compose (Recommended)
+
+1. Start the container in background mode:
+   ```bash
+   docker compose up -d --build
+   ```
+
+2. Check container status:
+   ```bash
+   docker compose ps
+   ```
+
+3. View live logs:
+   ```bash
+   docker compose logs -f
+   ```
+
+4. Stop the container:
+   ```bash
+   docker compose down
+   ```
+
+---
+
+### Option B: Using Standalone Docker CLI
+
+1. Build the Docker image:
+   ```bash
+   docker build -t anime-stream-hub:latest .
+   ```
+
+2. Run the container:
+   ```bash
+   docker run -d \
+     --name anime-stream-hub \
+     --restart unless-stopped \
+     -p 5050:5050 \
+     anime-stream-hub:latest
+   ```
+
+3. Open in your browser:
+   ```
+   http://localhost:5050
+   ```
+
+---
+
+## 🚀 Local Development Guide
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) (v18 or higher)
