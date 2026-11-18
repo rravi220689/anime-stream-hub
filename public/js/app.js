@@ -83,6 +83,8 @@ class AnimeStreamApp {
     this.playerTitle = document.getElementById('playerTitle');
     this.playerSubtitle = document.getElementById('playerSubtitle');
     this.serverList = document.getElementById('serverList');
+    this.externalMirrorsRow = document.getElementById('externalMirrorsRow');
+    this.externalMirrorsList = document.getElementById('externalMirrorsList');
     this.episodeSection = document.getElementById('episodeSection');
     this.episodeGrid = document.getElementById('episodeGrid');
     this.totalEpCount = document.getElementById('totalEpCount');
@@ -444,6 +446,7 @@ class AnimeStreamApp {
       if (!json.success || !json.data) throw new Error('Details not available');
 
       const anime = json.data;
+      const totalEpisodes = anime.episodes || anime.episodesList?.length || 1;
       this.currentItem = {
         type: 'anime',
         id: anime.id,
@@ -451,14 +454,16 @@ class AnimeStreamApp {
         title: anime.title.english || anime.title.romaji,
         poster: anime.coverImage.large,
         episodesList: anime.episodesList || [],
-        totalEpisodes: anime.episodes || anime.episodesList.length || 1,
-        genres: anime.genres || []
+        totalEpisodes: totalEpisodes,
+        genres: anime.genres || [],
+        externalMirrors: anime.externalMirrors || null
       };
 
-      this.currentEpisode = episodeNumber;
+      this.currentEpisode = Math.max(1, Math.min(episodeNumber, totalEpisodes));
       this.currentServerIndex = 0;
       this.renderPlayerMeta();
       this.renderEpisodeGrid();
+      this.renderExternalMirrors();
       this.loadStreamForCurrentEpisode();
       this.saveHistory();
     } catch (err) {
@@ -482,6 +487,7 @@ class AnimeStreamApp {
 
     this.currentEpisode = 1;
     this.episodeSection.classList.add('hidden');
+    if (this.externalMirrorsRow) this.externalMirrorsRow.classList.add('hidden');
     this.playerSection.classList.remove('hidden');
     this.scrollToPlayer();
 
@@ -537,6 +543,7 @@ class AnimeStreamApp {
     };
 
     this.episodeSection.classList.add('hidden');
+    if (this.externalMirrorsRow) this.externalMirrorsRow.classList.add('hidden');
     this.playerSection.classList.remove('hidden');
     this.scrollToPlayer();
 
@@ -562,6 +569,23 @@ class AnimeStreamApp {
     this.embedIframe.src = this.currentItem.embedUrl;
     this.embedIframe.onload = () => this.showPlayerLoading(false);
     this.loadTimeout = setTimeout(() => this.showPlayerLoading(false), 1500);
+  }
+
+  renderExternalMirrors() {
+    if (!this.externalMirrorsRow || !this.externalMirrorsList) return;
+    const mirrors = this.currentItem?.externalMirrors;
+    if (!mirrors || (!mirrors.gogoanime && !mirrors.animepahe && !mirrors.hianime)) {
+      this.externalMirrorsRow.classList.add('hidden');
+      return;
+    }
+
+    this.externalMirrorsRow.classList.remove('hidden');
+    this.externalMirrorsList.innerHTML = `
+      ${mirrors.gogoanime ? `<a href="${mirrors.gogoanime}" target="_blank" rel="noopener" class="mirror-link-btn"><i data-lucide="play-circle"></i> Watch on Gogoanime</a>` : ''}
+      ${mirrors.animepahe ? `<a href="${mirrors.animepahe}" target="_blank" rel="noopener" class="mirror-link-btn"><i data-lucide="external-link"></i> Watch on AnimePahe</a>` : ''}
+      ${mirrors.hianime ? `<a href="${mirrors.hianime}" target="_blank" rel="noopener" class="mirror-link-btn"><i data-lucide="tv"></i> Watch on HiAnime</a>` : ''}
+    `;
+    this.renderIcons();
   }
 
   switchYouTubeServer(mode) {
@@ -602,6 +626,9 @@ class AnimeStreamApp {
     }
 
     const servers = epData.servers;
+    if (this.currentServerIndex >= servers.length) {
+      this.currentServerIndex = 0;
+    }
     const selectedServer = servers[this.currentServerIndex] || servers[0];
 
     // Render Server Selector Buttons
@@ -618,24 +645,48 @@ class AnimeStreamApp {
     });
 
     // Native vs Iframe switch
-    if (this.hls) {
-      this.hls.destroy();
-      this.hls = null;
-    }
-    this.nativeVideo.classList.add('hidden');
-    this.nativeVideo.pause();
-    this.nativeVideo.src = '';
+    if (selectedServer.type === 'hls' || selectedServer.type === 'direct') {
+      this.embedIframe.classList.add('hidden');
+      this.embedIframe.src = '';
+      this.nativeVideo.classList.remove('hidden');
+      this.showPlayerLoading(true);
 
-    if (this.loadTimeout) clearTimeout(this.loadTimeout);
-    this.embedIframe.classList.remove('hidden');
-    this.showPlayerLoading(true);
-    this.embedIframe.src = selectedServer.url;
-    this.embedIframe.onload = () => {
-      this.showPlayerLoading(false);
-    };
-    this.loadTimeout = setTimeout(() => {
-      this.showPlayerLoading(false);
-    }, 2000);
+      if (selectedServer.type === 'hls' && Hls.isSupported()) {
+        if (this.hls) this.hls.destroy();
+        this.hls = new Hls({ enableWorker: true });
+        this.hls.loadSource(selectedServer.url);
+        this.hls.attachMedia(this.nativeVideo);
+        this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          this.showPlayerLoading(false);
+          this.nativeVideo.play().catch(() => {});
+        });
+      } else {
+        this.nativeVideo.src = selectedServer.url;
+        this.nativeVideo.onloadeddata = () => {
+          this.showPlayerLoading(false);
+          this.nativeVideo.play().catch(() => {});
+        };
+      }
+    } else {
+      if (this.hls) {
+        this.hls.destroy();
+        this.hls = null;
+      }
+      this.nativeVideo.classList.add('hidden');
+      this.nativeVideo.pause();
+      this.nativeVideo.src = '';
+
+      if (this.loadTimeout) clearTimeout(this.loadTimeout);
+      this.embedIframe.classList.remove('hidden');
+      this.showPlayerLoading(true);
+      this.embedIframe.src = selectedServer.url;
+      this.embedIframe.onload = () => {
+        this.showPlayerLoading(false);
+      };
+      this.loadTimeout = setTimeout(() => {
+        this.showPlayerLoading(false);
+      }, 1500);
+    }
 
     // Update episode navigation button states
     this.prevEpBtn.disabled = this.currentEpisode <= 1;
@@ -670,7 +721,7 @@ class AnimeStreamApp {
     this.totalEpCount.textContent = episodes.length;
     this.episodeGrid.innerHTML = '';
 
-    // Generate up to 1000 episode pills
+    // Generate episode pills
     episodes.forEach(ep => {
       const pill = document.createElement('button');
       pill.className = `ep-pill ${ep.number === this.currentEpisode ? 'active' : ''}`;
@@ -678,7 +729,6 @@ class AnimeStreamApp {
       pill.textContent = `Ep ${ep.number}`;
       pill.onclick = () => {
         this.currentEpisode = ep.number;
-        this.currentServerIndex = 0;
         this.loadStreamForCurrentEpisode();
       };
       this.episodeGrid.appendChild(pill);
@@ -688,7 +738,6 @@ class AnimeStreamApp {
   playNextEpisode() {
     if (this.currentItem && this.currentEpisode < this.currentItem.totalEpisodes) {
       this.currentEpisode++;
-      this.currentServerIndex = 0;
       this.loadStreamForCurrentEpisode();
       this.saveHistory();
     }
@@ -697,7 +746,6 @@ class AnimeStreamApp {
   playPreviousEpisode() {
     if (this.currentItem && this.currentEpisode > 1) {
       this.currentEpisode--;
-      this.currentServerIndex = 0;
       this.loadStreamForCurrentEpisode();
       this.saveHistory();
     }
@@ -738,6 +786,7 @@ class AnimeStreamApp {
     this.embedIframe.src = '';
     this.playerSection.classList.add('hidden');
     this.miniPlayer.classList.add('hidden');
+    if (this.externalMirrorsRow) this.externalMirrorsRow.classList.add('hidden');
     if (this.isCinemaMode) this.toggleCinemaMode();
   }
 

@@ -149,7 +149,7 @@
             class="video-frame" 
             src="" 
             allowfullscreen 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
             referrerpolicy="no-referrer-when-downgrade"
           ></iframe>
 
@@ -211,6 +211,16 @@
           </div>
           <div id="serverList" class="server-buttons-list">
             <!-- Dynamically populated servers -->
+          </div>
+
+          <!-- Quick External Hubs (Gogoanime, AnimePahe, HiAnime) -->
+          <div id="externalMirrorsRow" class="external-mirrors-row hidden">
+            <div class="mirrors-label">
+              <i data-lucide="compass"></i>
+              <span>Other Anime Sites:</span>
+              <small class="server-hint">(Direct links for Gogoanime & AnimePahe)</small>
+            </div>
+            <div id="externalMirrorsList" class="mirrors-btn-group"></div>
           </div>
         </div>
 
