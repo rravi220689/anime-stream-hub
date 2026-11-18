@@ -16,11 +16,17 @@ Dedicated 10-foot Leanback Android TV application (`com.anistream.tv`) designed 
   - Instant navigation between categories: **Trending Anime**, **Classic Cartoons**, **Top Movies**, and **Popular Hits**.
 - **Remote-Friendly Fullscreen TV Player**:
   - Integrated ExoPlayer Media3 engine for HLS / MP4 playback.
+  - **Fullscreen Immersive Sticky Mode**: Edge-to-edge television screen playback without system bar intrusions.
+  - **TV Aspect Ratio / Screen Sizing**: D-pad toggle for `Fit (16:9 Original)`, `Zoom (Fill TV Screen)`, and `Stretch (Full Viewport)` with center TV badge indicators.
+  - **Auto-Hiding HUD Overlay**: Controls overlay automatically fades out after 4 seconds into 100% unobscured fullscreen viewing; any D-pad key fades controls back in.
   - Key interceptors for TV remote controls:
     - **DPAD_CENTER / ENTER**: Play / Pause toggle.
     - **DPAD_LEFT / DPAD_RIGHT**: Seek backward / forward by 10 seconds.
     - **DPAD_DOWN / UP**: Show / hide TV player controls overlay and episode rail.
     - **BACK**: Return to home screen.
+- **Custom Android TV App Icons & Banner**:
+  - Official 16:9 Android TV Leanback Banner (`@drawable/tv_banner`) featuring the AniStream Cyberpunk emblem, typography, and 4K Ultra HD badge.
+  - Matching adaptive TV app icons (`@mipmap/ic_launcher` & `@mipmap/ic_launcher_round`).
 - **Server Address Configuration**:
   - D-pad accessible Settings button in the top bar to set backend IP (`http://10.0.2.2:5050` or LAN Wi-Fi IP).
 

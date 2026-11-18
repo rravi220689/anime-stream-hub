@@ -12,8 +12,12 @@ Dedicated native Android client for smartphones and tablets (`com.anistream.mobi
 - **Native Video Player (ExoPlayer Media3)**:
   - Hardware accelerated HLS (`.m3u8`) and MP4 streaming.
   - Multi-server fallback engine + WebView container for iframe sources.
-  - Picture-in-Picture (PiP) support for continuous playback while multi-tasking.
+  - **Full Screen Toggle & Auto-Rotation**: 1-click fullscreen toggle button, automatic sensor landscape/portrait transition, immersive sticky mode hiding system navigation/status bars, and back-button interceptor.
+  - **Screen Aspect Ratio Cycling**: Switch between `Fit (16:9 Standard)`, `Zoom (Crop to Fill Screen / Notch)`, and `Stretch (Full Viewport)` with on-screen HUD pop-up indicators.
+  - **1-Click Picture-in-Picture (PiP)**: Dedicated player PiP button and background home minimize.
+  - Auto-hiding HUD controls on video tap with smooth fade animations.
   - Quick episode carousel inside the player.
+- **Custom Branded Neon App Icon**: Adaptive vector icon (`@mipmap/ic_launcher` & `@mipmap/ic_launcher_round`) featuring the AniStream Cyberpunk shield, neon play emblem, and anime star sparkle.
 - **Multi-Resolution Download Manager**:
   - Direct integration with system `DownloadManager`.
   - Supports downloads across multiple resolutions: 1080p Full HD, 720p HD, 480p SD, 360p, and MP3 audio extraction.

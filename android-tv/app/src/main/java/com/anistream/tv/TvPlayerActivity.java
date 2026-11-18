@@ -17,11 +17,15 @@ import android.widget.Toast;
 
 import androidx.annotation.OptIn;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -36,7 +40,9 @@ public class TvPlayerActivity extends AppCompatActivity {
     private ProgressBar tvPlayerLoading;
     private View tvControlsOverlay;
     private TextView tvTvPlayerTitle;
+    private TextView tvTvAspectBadge;
     private Button btnTvBack;
+    private Button btnTvAspectRatio;
     private Button btnTvRewind;
     private Button btnTvPlayPause;
     private Button btnTvForward;
@@ -45,11 +51,22 @@ public class TvPlayerActivity extends AppCompatActivity {
     private ExoPlayer exoPlayer;
     private TvAnimeItem item;
     private int currentEpisode = 1;
+    private int currentResizeMode = 0; // 0: FIT, 1: ZOOM, 2: FILL
 
     private final Handler hideHandler = new Handler(Looper.getMainLooper());
     private final Runnable hideRunnable = () -> {
         if (tvControlsOverlay != null && (exoPlayer == null || exoPlayer.isPlaying())) {
-            tvControlsOverlay.setVisibility(View.GONE);
+            tvControlsOverlay.animate().alpha(0f).setDuration(400).withEndAction(() -> {
+                tvControlsOverlay.setVisibility(View.GONE);
+            }).start();
+        }
+    };
+
+    private final Runnable hideBadgeRunnable = () -> {
+        if (tvTvAspectBadge != null) {
+            tvTvAspectBadge.animate().alpha(0f).setDuration(300).withEndAction(() -> {
+                tvTvAspectBadge.setVisibility(View.GONE);
+            }).start();
         }
     };
 
@@ -57,6 +74,13 @@ public class TvPlayerActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_tv_player);
+
+        // Immersive Sticky edge-to-edge mode for TV screens
+        WindowInsetsControllerCompat insetsController =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        insetsController.hide(WindowInsetsCompat.Type.systemBars());
+        insetsController.setSystemBarsBehavior(
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
 
         item = (TvAnimeItem) getIntent().getSerializableExtra("item");
         if (item == null) {
@@ -77,18 +101,22 @@ public class TvPlayerActivity extends AppCompatActivity {
         tvPlayerLoading = findViewById(R.id.tvPlayerLoading);
         tvControlsOverlay = findViewById(R.id.tvControlsOverlay);
         tvTvPlayerTitle = findViewById(R.id.tvTvPlayerTitle);
+        tvTvAspectBadge = findViewById(R.id.tvTvAspectBadge);
         btnTvBack = findViewById(R.id.btnTvBack);
+        btnTvAspectRatio = findViewById(R.id.btnTvAspectRatio);
         btnTvRewind = findViewById(R.id.btnTvRewind);
         btnTvPlayPause = findViewById(R.id.btnTvPlayPause);
         btnTvForward = findViewById(R.id.btnTvForward);
         rvTvEpisodes = findViewById(R.id.rvTvEpisodes);
 
         TvFocusHelper.applyTvFocusAnimation(btnTvBack);
+        TvFocusHelper.applyTvFocusAnimation(btnTvAspectRatio);
         TvFocusHelper.applyTvFocusAnimation(btnTvRewind);
         TvFocusHelper.applyTvFocusAnimation(btnTvPlayPause);
         TvFocusHelper.applyTvFocusAnimation(btnTvForward);
 
         btnTvBack.setOnClickListener(v -> finish());
+        btnTvAspectRatio.setOnClickListener(v -> cycleAspectRatio());
 
         btnTvRewind.setOnClickListener(v -> seekRelative(-10000));
         btnTvForward.setOnClickListener(v -> seekRelative(10000));
@@ -110,6 +138,43 @@ public class TvPlayerActivity extends AppCompatActivity {
         }
 
         btnTvPlayPause.requestFocus();
+    }
+
+    @OptIn(markerClass = UnstableApi.class)
+    private void cycleAspectRatio() {
+        currentResizeMode = (currentResizeMode + 1) % 3;
+        String modeName;
+        String btnLabel;
+        int mode;
+        switch (currentResizeMode) {
+            case 1:
+                mode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM;
+                modeName = "Zoom (Crop to Full TV Screen)";
+                btnLabel = "📺 Screen: Zoom / Fill";
+                break;
+            case 2:
+                mode = AspectRatioFrameLayout.RESIZE_MODE_FILL;
+                modeName = "Stretch (Full 16:9 Screen)";
+                btnLabel = "📺 Screen: Stretch";
+                break;
+            default:
+                mode = AspectRatioFrameLayout.RESIZE_MODE_FIT;
+                modeName = "Fit (16:9 Original Aspect)";
+                btnLabel = "📺 Screen: Fit (16:9)";
+                break;
+        }
+        tvExoPlayer.setResizeMode(mode);
+        btnTvAspectRatio.setText(btnLabel);
+        showAspectBadge(modeName);
+        showControlsTemporarily();
+    }
+
+    private void showAspectBadge(String text) {
+        tvTvAspectBadge.setText(text);
+        tvTvAspectBadge.setVisibility(View.VISIBLE);
+        tvTvAspectBadge.setAlpha(1f);
+        hideHandler.removeCallbacks(hideBadgeRunnable);
+        hideHandler.postDelayed(hideBadgeRunnable, 2200);
     }
 
     private void updateTitle() {
@@ -209,6 +274,7 @@ public class TvPlayerActivity extends AppCompatActivity {
 
     private void showControlsTemporarily() {
         tvControlsOverlay.setVisibility(View.VISIBLE);
+        tvControlsOverlay.animate().alpha(1f).setDuration(200).start();
         hideHandler.removeCallbacks(hideRunnable);
         hideHandler.postDelayed(hideRunnable, 4000);
     }
@@ -285,6 +351,7 @@ public class TvPlayerActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         hideHandler.removeCallbacks(hideRunnable);
+        hideHandler.removeCallbacks(hideBadgeRunnable);
         if (exoPlayer != null) {
             exoPlayer.release();
             exoPlayer = null;

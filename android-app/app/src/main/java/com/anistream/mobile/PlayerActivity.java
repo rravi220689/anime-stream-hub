@@ -2,30 +2,41 @@ package com.anistream.mobile;
 
 import android.app.AlertDialog;
 import android.app.PictureInPictureParams;
+import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Rational;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.OptIn;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
+import androidx.core.widget.NestedScrollView;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -42,6 +53,8 @@ import java.util.List;
 
 public class PlayerActivity extends AppCompatActivity {
 
+    private FrameLayout playerContainer;
+    private NestedScrollView playerScrollView;
     private PlayerView exoPlayerView;
     private WebView playerWebView;
     private ProgressBar playerLoading;
@@ -54,12 +67,30 @@ public class PlayerActivity extends AppCompatActivity {
     private RecyclerView rvEpisodes;
     private LinearLayout serverChipsContainer;
     private TextView tvEpisodesHeading;
+    private TextView tvAspectRatioBadge;
+
+    private ImageView btnPlayerBack;
+    private ImageView btnPlayerPip;
+    private ImageView btnToggleAspectRatio;
+    private ImageView btnToggleFullscreen;
 
     private ExoPlayer exoPlayer;
     private AnimeItem item;
     private int currentEpisode = 1;
     private WatchlistManager watchlistManager;
     private ApiClient apiClient;
+
+    private boolean isFullscreen = false;
+    private int currentResizeMode = 0; // 0: FIT, 1: ZOOM, 2: FILL
+    private final Handler hudHandler = new Handler(Looper.getMainLooper());
+    private final Runnable hideHudRunnable = this::hideControlsOverlay;
+    private final Runnable hideBadgeRunnable = () -> {
+        if (tvAspectRatioBadge != null) {
+            tvAspectRatioBadge.animate().alpha(0f).setDuration(300).withEndAction(() -> {
+                tvAspectRatioBadge.setVisibility(View.GONE);
+            }).start();
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,6 +114,8 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void initViews() {
+        playerContainer = findViewById(R.id.playerContainer);
+        playerScrollView = findViewById(R.id.playerScrollView);
         exoPlayerView = findViewById(R.id.exoPlayerView);
         playerWebView = findViewById(R.id.playerWebView);
         playerLoading = findViewById(R.id.playerLoading);
@@ -95,12 +128,167 @@ public class PlayerActivity extends AppCompatActivity {
         rvEpisodes = findViewById(R.id.rvEpisodes);
         serverChipsContainer = findViewById(R.id.serverChipsContainer);
         tvEpisodesHeading = findViewById(R.id.tvEpisodesHeading);
+        tvAspectRatioBadge = findViewById(R.id.tvAspectRatioBadge);
 
-        ImageView btnBack = findViewById(R.id.btnPlayerBack);
-        btnBack.setOnClickListener(v -> finish());
+        btnPlayerBack = findViewById(R.id.btnPlayerBack);
+        btnPlayerBack.setOnClickListener(v -> {
+            if (isFullscreen) {
+                toggleFullscreen(false);
+            } else {
+                finish();
+            }
+        });
+
+        btnPlayerPip = findViewById(R.id.btnPlayerPip);
+        btnPlayerPip.setOnClickListener(v -> enterPip());
+
+        btnToggleAspectRatio = findViewById(R.id.btnToggleAspectRatio);
+        btnToggleAspectRatio.setOnClickListener(v -> cycleAspectRatio());
+
+        btnToggleFullscreen = findViewById(R.id.btnToggleFullscreen);
+        btnToggleFullscreen.setOnClickListener(v -> toggleFullscreen(!isFullscreen));
 
         btnTriggerDownload.setOnClickListener(v -> openDownloadModal());
         btnToggleWatchlist.setOnClickListener(v -> toggleWatchlist());
+
+        // Tap video to toggle controls overlay
+        playerContainer.setOnClickListener(v -> togglePlayerControlsOverlay());
+
+        // Handle Back button to exit fullscreen first
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (isFullscreen) {
+                    toggleFullscreen(false);
+                } else {
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
+            }
+        });
+    }
+
+    public void toggleFullscreen(boolean enable) {
+        isFullscreen = enable;
+        if (enable) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        } else {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT);
+        }
+        updateFullscreenUi(enable);
+    }
+
+    private void updateFullscreenUi(boolean fullscreen) {
+        isFullscreen = fullscreen;
+        ViewGroup.LayoutParams lp = playerContainer.getLayoutParams();
+        WindowInsetsControllerCompat insetsController =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+
+        if (fullscreen) {
+            lp.height = ViewGroup.LayoutParams.MATCH_PARENT;
+            playerContainer.setLayoutParams(lp);
+            playerScrollView.setVisibility(View.GONE);
+
+            // Immersive Sticky: Hide Status Bar and Navigation Bar
+            insetsController.hide(WindowInsetsCompat.Type.systemBars());
+            insetsController.setSystemBarsBehavior(
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+
+            btnToggleFullscreen.setImageResource(R.drawable.ic_fullscreen_exit);
+            scheduleHideHud();
+        } else {
+            float density = getResources().getDisplayMetrics().density;
+            lp.height = (int) (240 * density);
+            playerContainer.setLayoutParams(lp);
+            playerScrollView.setVisibility(View.VISIBLE);
+
+            // Restore System Bars
+            insetsController.show(WindowInsetsCompat.Type.systemBars());
+
+            btnToggleFullscreen.setImageResource(R.drawable.ic_fullscreen);
+            showControlsOverlay();
+        }
+    }
+
+    @OptIn(markerClass = UnstableApi.class)
+    private void cycleAspectRatio() {
+        currentResizeMode = (currentResizeMode + 1) % 3;
+        String modeName;
+        int mode;
+        switch (currentResizeMode) {
+            case 1:
+                mode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM;
+                modeName = "Zoom (Crop / Fill Screen)";
+                break;
+            case 2:
+                mode = AspectRatioFrameLayout.RESIZE_MODE_FILL;
+                modeName = "Stretch (Full Screen)";
+                break;
+            default:
+                mode = AspectRatioFrameLayout.RESIZE_MODE_FIT;
+                modeName = "Fit (16:9 Original)";
+                break;
+        }
+        exoPlayerView.setResizeMode(mode);
+        showAspectRatioBadge(modeName);
+    }
+
+    private void showAspectRatioBadge(String text) {
+        tvAspectRatioBadge.setText(text);
+        tvAspectRatioBadge.setVisibility(View.VISIBLE);
+        tvAspectRatioBadge.setAlpha(1f);
+        hudHandler.removeCallbacks(hideBadgeRunnable);
+        hudHandler.postDelayed(hideBadgeRunnable, 2200);
+    }
+
+    private void togglePlayerControlsOverlay() {
+        View topBar = findViewById(R.id.playerTopBar);
+        if (topBar.getVisibility() == View.VISIBLE) {
+            hideControlsOverlay();
+        } else {
+            showControlsOverlay();
+            if (isFullscreen) {
+                scheduleHideHud();
+            }
+        }
+    }
+
+    private void showControlsOverlay() {
+        View topBar = findViewById(R.id.playerTopBar);
+        topBar.setVisibility(View.VISIBLE);
+        topBar.animate().alpha(1f).setDuration(200).start();
+    }
+
+    private void hideControlsOverlay() {
+        if (!isFullscreen) return; // Always keep visible in portrait mode
+        View topBar = findViewById(R.id.playerTopBar);
+        topBar.animate().alpha(0f).setDuration(300).withEndAction(() -> topBar.setVisibility(View.GONE)).start();
+    }
+
+    private void scheduleHideHud() {
+        hudHandler.removeCallbacks(hideHudRunnable);
+        hudHandler.postDelayed(hideHudRunnable, 3500);
+    }
+
+    private void enterPip() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Rational rational = new Rational(16, 9);
+            PictureInPictureParams params = new PictureInPictureParams.Builder()
+                    .setAspectRatio(rational)
+                    .build();
+            enterPictureInPictureMode(params);
+        } else {
+            Toast.makeText(this, "Picture-in-Picture requires Android 8.0+", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (!isInPictureInPictureMode()) {
+            boolean isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE;
+            updateFullscreenUi(isLandscape);
+        }
     }
 
     @OptIn(markerClass = UnstableApi.class)
@@ -336,6 +524,7 @@ public class PlayerActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        hudHandler.removeCallbacksAndMessages(null);
         if (exoPlayer != null) {
             exoPlayer.release();
             exoPlayer = null;

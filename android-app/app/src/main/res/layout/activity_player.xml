@@ -36,6 +36,22 @@
             android:indeterminateTint="@color/accent_cyan"
             android:visibility="gone" />
 
+        <!-- Floating Aspect Ratio Badge Indicator -->
+        <TextView
+            android:id="@+id/tvAspectRatioBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_modal"
+            android:elevation="8dp"
+            android:fontFamily="sans-serif-bold"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            android:textColor="@color/accent_cyan"
+            android:textSize="14sp"
+            android:visibility="gone"
+            tools:text="Aspect Ratio: Fit (16:9)" />
+
         <!-- Top Player Bar overlay -->
         <LinearLayout
             android:id="@+id/playerTopBar"
@@ -51,6 +67,7 @@
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Back"
                 android:padding="6dp"
                 android:src="@drawable/ic_back"
                 app:tint="@color/text_primary" />
@@ -67,11 +84,44 @@
                 android:textColor="@color/text_primary"
                 android:textSize="14sp"
                 tools:text="One Piece Episode 1" />
+
+            <ImageView
+                android:id="@+id/btnPlayerPip"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Picture in Picture"
+                android:padding="6dp"
+                android:src="@drawable/ic_pip"
+                app:tint="@color/text_primary" />
+
+            <ImageView
+                android:id="@+id/btnToggleAspectRatio"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Aspect Ratio"
+                android:padding="6dp"
+                android:src="@drawable/ic_aspect_ratio"
+                app:tint="@color/text_primary" />
+
+            <ImageView
+                android:id="@+id/btnToggleFullscreen"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Fullscreen"
+                android:padding="6dp"
+                android:src="@drawable/ic_fullscreen"
+                app:tint="@color/text_primary" />
         </LinearLayout>
     </FrameLayout>
 
     <!-- Scrollable Details & Episode Navigation -->
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/playerScrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"

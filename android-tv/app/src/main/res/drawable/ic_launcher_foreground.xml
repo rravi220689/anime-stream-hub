@@ -1,0 +1,52 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Glowing Outer Shield Contour -->
+    <path
+        android:fillColor="#1E293B"
+        android:strokeColor="#8B5CF6"
+        android:strokeWidth="2.5"
+        android:pathData="M54,24 L82,40 L74,76 L54,84 L34,76 L26,40 Z" />
+
+    <!-- Inner Neon Cyan Border Accent -->
+    <path
+        android:strokeColor="#00F0FF"
+        android:strokeWidth="1.5"
+        android:pathData="M54,28 L78,42 L71,73 L54,80 L37,73 L30,42 Z" />
+
+    <!-- Letter 'A' Left Wing Beam -->
+    <path
+        android:fillColor="#00F0FF"
+        android:pathData="M39,40 L44,40 L38,68 L33,68 Z" />
+
+    <!-- Letter 'A' Horizontal Bridge -->
+    <path
+        android:fillColor="#8B5CF6"
+        android:pathData="M35,55 L49,55 L49,59 L35,59 Z" />
+
+    <!-- Dynamic Play Triangle (Top half Cyan, Bottom half Electric Magenta) -->
+    <path
+        android:fillColor="#00F0FF"
+        android:pathData="M46,38 L72,54 L46,54 Z" />
+    <path
+        android:fillColor="#EC4899"
+        android:pathData="M46,54 L72,54 L46,70 Z" />
+
+    <!-- Inner Play Center Accent -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,47 L62,54 L50,54 Z" />
+
+    <!-- 4-Point Anime Sparkle Star (Top Right) -->
+    <path
+        android:fillColor="#FFB800"
+        android:pathData="M75,27 L76.5,31.5 L81,33 L76.5,34.5 L75,39 L73.5,34.5 L69,33 L73.5,31.5 Z" />
+
+    <!-- Small Secondary Sparkle (Bottom Left) -->
+    <path
+        android:fillColor="#00F0FF"
+        android:pathData="M31,68 L32,70.5 L34.5,71.5 L32,72.5 L31,75 L30,72.5 L27.5,71.5 L30,70.5 Z" />
+</vector>
