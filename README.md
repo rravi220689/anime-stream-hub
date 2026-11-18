@@ -404,7 +404,7 @@ In addition to the responsive Web app, this repository contains **two dedicated 
 ### 1. 📱 AniStream Mobile (`android-app/`)
 - **Package**: `com.anistream.mobile`
 - **Target**: Android phones & tablets (SDK 24 - 34)
-- **Features**: Bottom navigation, cartoon category chips, offline watchlist, ExoPlayer Media3 player with Fullscreen auto-rotation, aspect ratio cycling (Fit, Zoom, Stretch), PiP (Picture-in-Picture), custom cyberpunk adaptive app icons, and multi-resolution Download Manager (1080p, 720p, 480p, MP3).
+- **Features**: Bottom navigation, cartoon category chips, universal responsive pagination (`Prev`, `Next`, Jump to Page dialog with page numbers and total items), offline watchlist, ExoPlayer Media3 player with Fullscreen auto-rotation, aspect ratio cycling (Fit, Zoom, Stretch), PiP (Picture-in-Picture), custom cyberpunk adaptive app icons, and multi-resolution original episode and companion English subtitles (`.srt`) Download Manager (1080p, 720p, 480p, MP3).
 - **Default Server**: `http://rravi.ddns.net:4008` (configurable in settings)
 - **Pre-Built Signed Release**: [`releases/AniStream-Mobile-v1.0.0-release.apk`](releases/AniStream-Mobile-v1.0.0-release.apk)
 - **Build Release APK**:
@@ -416,7 +416,7 @@ In addition to the responsive Web app, this repository contains **two dedicated 
 ### 2. 📺 AniStream TV (`android-tv/`)
 - **Package**: `com.anistream.tv`
 - **Target**: Android TV, Google TV & Fire TV (SDK 24 - 34)
-- **Features**: 10-foot Leanback UI, D-pad remote navigation with focus scaling & glowing borders, dynamic Spotlight hero banner, 4 horizontal category rails, remote-friendly fullscreen TV player with D-pad aspect ratio toggle (`Fit`, `Zoom`, `Stretch`), center badge indicators, and matching TV banner.
+- **Features**: 10-foot Leanback UI, D-pad remote navigation with focus scaling & glowing borders, dynamic Spotlight hero banner, 4 horizontal category rails with universal TV D-pad focusable pagination bar (`‹ Prev Page`, `Next Page ›`, page status), remote-friendly fullscreen TV player with D-pad aspect ratio toggle (`Fit`, `Zoom`, `Stretch`), center badge indicators, and matching TV banner.
 - **Default Server**: `http://rravi.ddns.net:4008` (configurable in settings)
 - **Pre-Built Signed Release**: [`releases/AniStream-TV-v1.0.0-release.apk`](releases/AniStream-TV-v1.0.0-release.apk)
 - **Build Release APK**:

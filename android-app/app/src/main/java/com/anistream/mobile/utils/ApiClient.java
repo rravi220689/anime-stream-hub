@@ -11,6 +11,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -65,9 +66,23 @@ public class ApiClient {
         void onError(Exception e);
     }
 
-    // 1. Fetch Anime Collection (trending, popular, latest, movies)
-    public void fetchAnimeList(String endpoint, ApiCallback<List<AnimeItem>> callback) {
-        String url = getServerUrl() + endpoint;
+    public static class PageInfo implements Serializable {
+        public int currentPage = 1;
+        public int lastPage = 1;
+        public int total = 0;
+        public boolean hasNextPage = false;
+        public int perPage = 24;
+    }
+
+    public static class AnimePageResult {
+        public List<AnimeItem> items = new ArrayList<>();
+        public PageInfo pageInfo = new PageInfo();
+    }
+
+    // 1. Fetch Anime Collection with Pagination (trending, popular, latest, movies)
+    public void fetchAnimeList(String endpoint, int page, ApiCallback<AnimePageResult> callback) {
+        String separator = endpoint.contains("?") ? "&" : "?";
+        String url = getServerUrl() + endpoint + separator + "page=" + page + "&limit=24";
         Request request = new Request.Builder().url(url).build();
 
         client.newCall(request).enqueue(new Callback() {
@@ -85,20 +100,41 @@ public class ApiClient {
                 try {
                     String jsonStr = response.body().string();
                     JsonObject root = gson.fromJson(jsonStr, JsonObject.class);
-                    List<AnimeItem> items = new ArrayList<>();
+                    AnimePageResult result = new AnimePageResult();
+
+                    if (root.has("pageInfo") && root.get("pageInfo").isJsonObject()) {
+                        result.pageInfo = gson.fromJson(root.get("pageInfo"), PageInfo.class);
+                    } else {
+                        result.pageInfo.currentPage = page;
+                    }
 
                     if (root.has("data") && root.get("data").isJsonArray()) {
                         JsonArray dataArr = root.getAsJsonArray("data");
                         for (JsonElement el : dataArr) {
                             JsonObject obj = el.getAsJsonObject();
                             AnimeItem item = parseAnimeItem(obj);
-                            if (item != null) items.add(item);
+                            if (item != null) result.items.add(item);
                         }
                     }
-                    callback.onSuccess(items);
+                    callback.onSuccess(result);
                 } catch (Exception e) {
                     callback.onError(e);
                 }
+            }
+        });
+    }
+
+    // Overload for backwards compatibility
+    public void fetchAnimeList(String endpoint, ApiCallback<List<AnimeItem>> callback) {
+        fetchAnimeList(endpoint, 1, new ApiCallback<AnimePageResult>() {
+            @Override
+            public void onSuccess(AnimePageResult result) {
+                callback.onSuccess(result.items);
+            }
+
+            @Override
+            public void onError(Exception e) {
+                callback.onError(e);
             }
         });
     }
@@ -150,9 +186,13 @@ public class ApiClient {
         });
     }
 
-    // 3. Search Endpoint
-    public void search(String query, ApiCallback<List<AnimeItem>> callback) {
-        String url = getServerUrl() + "/api/anime/search?q=" + query;
+    // 3. Search Endpoint with Pagination
+    public void search(String query, int page, ApiCallback<AnimePageResult> callback) {
+        String encQ = "";
+        try {
+            encQ = URLEncoder.encode(query != null ? query : "", StandardCharsets.UTF_8.name());
+        } catch (Exception ignored) {}
+        String url = getServerUrl() + "/api/anime/search?q=" + encQ + "&page=" + page + "&limit=24";
         Request request = new Request.Builder().url(url).build();
 
         client.newCall(request).enqueue(new Callback() {
@@ -170,20 +210,40 @@ public class ApiClient {
                 try {
                     String jsonStr = response.body().string();
                     JsonObject root = gson.fromJson(jsonStr, JsonObject.class);
-                    List<AnimeItem> items = new ArrayList<>();
+                    AnimePageResult result = new AnimePageResult();
+
+                    if (root.has("pageInfo") && root.get("pageInfo").isJsonObject()) {
+                        result.pageInfo = gson.fromJson(root.get("pageInfo"), PageInfo.class);
+                    } else {
+                        result.pageInfo.currentPage = page;
+                    }
 
                     if (root.has("data") && root.get("data").isJsonArray()) {
                         JsonArray dataArr = root.getAsJsonArray("data");
                         for (JsonElement el : dataArr) {
                             JsonObject obj = el.getAsJsonObject();
                             AnimeItem item = parseAnimeItem(obj);
-                            if (item != null) items.add(item);
+                            if (item != null) result.items.add(item);
                         }
                     }
-                    callback.onSuccess(items);
+                    callback.onSuccess(result);
                 } catch (Exception e) {
                     callback.onError(e);
                 }
+            }
+        });
+    }
+
+    public void search(String query, ApiCallback<List<AnimeItem>> callback) {
+        search(query, 1, new ApiCallback<AnimePageResult>() {
+            @Override
+            public void onSuccess(AnimePageResult result) {
+                callback.onSuccess(result.items);
+            }
+
+            @Override
+            public void onError(Exception e) {
+                callback.onError(e);
             }
         });
     }

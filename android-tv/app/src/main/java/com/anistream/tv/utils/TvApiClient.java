@@ -95,8 +95,41 @@ public class TvApiClient {
         void onError(Exception e);
     }
 
+    public static class PageInfo {
+        public int total;
+        public int currentPage = 1;
+        public int lastPage = 1;
+        public boolean hasNextPage = false;
+        public int perPage = 24;
+    }
+
+    public static class TvAnimePageResult {
+        public List<TvAnimeItem> items;
+        public PageInfo pageInfo;
+
+        public TvAnimePageResult(List<TvAnimeItem> items, PageInfo pageInfo) {
+            this.items = items;
+            this.pageInfo = pageInfo;
+        }
+    }
+
     public void fetchAnimeList(String endpoint, ApiCallback<List<TvAnimeItem>> callback) {
-        String url = getServerUrl() + endpoint;
+        fetchAnimeList(endpoint, 1, new ApiCallback<TvAnimePageResult>() {
+            @Override
+            public void onSuccess(TvAnimePageResult result) {
+                callback.onSuccess(result.items);
+            }
+
+            @Override
+            public void onError(Exception e) {
+                callback.onError(e);
+            }
+        });
+    }
+
+    public void fetchAnimeList(String endpoint, int page, ApiCallback<TvAnimePageResult> callback) {
+        String connector = endpoint.contains("?") ? "&" : "?";
+        String url = getServerUrl() + endpoint + connector + "page=" + page;
         Request request = new Request.Builder().url(url).build();
 
         client.newCall(request).enqueue(new Callback() {
@@ -124,7 +157,19 @@ public class TvApiClient {
                             if (item != null) items.add(item);
                         }
                     }
-                    callback.onSuccess(items);
+
+                    PageInfo pageInfo = new PageInfo();
+                    pageInfo.currentPage = page;
+                    if (root.has("pageInfo") && root.get("pageInfo").isJsonObject()) {
+                        JsonObject pObj = root.getAsJsonObject("pageInfo");
+                        if (pObj.has("total")) pageInfo.total = pObj.get("total").getAsInt();
+                        if (pObj.has("currentPage")) pageInfo.currentPage = pObj.get("currentPage").getAsInt();
+                        if (pObj.has("lastPage")) pageInfo.lastPage = pObj.get("lastPage").getAsInt();
+                        if (pObj.has("hasNextPage")) pageInfo.hasNextPage = pObj.get("hasNextPage").getAsBoolean();
+                        if (pObj.has("perPage")) pageInfo.perPage = pObj.get("perPage").getAsInt();
+                    }
+
+                    callback.onSuccess(new TvAnimePageResult(items, pageInfo));
                 } catch (Exception e) {
                     callback.onError(e);
                 }

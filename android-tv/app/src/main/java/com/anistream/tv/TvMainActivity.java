@@ -33,6 +33,12 @@ public class TvMainActivity extends AppCompatActivity {
     private Button btnTvHeroWatchlist;
     private ProgressBar tvProgressBar;
 
+    private Button btnTvPrevPage;
+    private Button btnTvNextPage;
+    private TextView tvTvPageInfo;
+    private int currentTvPage = 1;
+    private TvApiClient.PageInfo currentTvPageInfo;
+
     private RecyclerView rvTvTrending;
     private RecyclerView rvTvPopular;
     private RecyclerView rvTvCartoons;
@@ -68,6 +74,10 @@ public class TvMainActivity extends AppCompatActivity {
         btnTvHeroWatchlist = findViewById(R.id.btnTvHeroWatchlist);
         tvProgressBar = findViewById(R.id.tvProgressBar);
 
+        btnTvPrevPage = findViewById(R.id.btnTvPrevPage);
+        btnTvNextPage = findViewById(R.id.btnTvNextPage);
+        tvTvPageInfo = findViewById(R.id.tvTvPageInfo);
+
         rvTvTrending = findViewById(R.id.rvTvTrending);
         rvTvPopular = findViewById(R.id.rvTvPopular);
         rvTvCartoons = findViewById(R.id.rvTvCartoons);
@@ -75,6 +85,8 @@ public class TvMainActivity extends AppCompatActivity {
 
         TvFocusHelper.applyTvFocusAnimation(btnTvHeroPlay);
         TvFocusHelper.applyTvFocusAnimation(btnTvHeroWatchlist);
+        if (btnTvPrevPage != null) TvFocusHelper.applyTvFocusAnimation(btnTvPrevPage);
+        if (btnTvNextPage != null) TvFocusHelper.applyTvFocusAnimation(btnTvNextPage);
 
         btnTvHeroPlay.setOnClickListener(v -> {
             if (heroFeaturedItem != null) {
@@ -87,6 +99,26 @@ public class TvMainActivity extends AppCompatActivity {
         btnTvHeroWatchlist.setOnClickListener(v -> {
             Toast.makeText(this, "Saved to Big Screen Favorites!", Toast.LENGTH_SHORT).show();
         });
+
+        if (btnTvPrevPage != null) {
+            btnTvPrevPage.setOnClickListener(v -> {
+                if (currentTvPage > 1) {
+                    currentTvPage--;
+                    loadTvContent(currentTvPage);
+                    tvScrollView.smoothScrollTo(0, rvTvTrending.getTop() - 80);
+                }
+            });
+        }
+
+        if (btnTvNextPage != null) {
+            btnTvNextPage.setOnClickListener(v -> {
+                if (currentTvPageInfo == null || currentTvPageInfo.hasNextPage || currentTvPage < currentTvPageInfo.lastPage) {
+                    currentTvPage++;
+                    loadTvContent(currentTvPage);
+                    tvScrollView.smoothScrollTo(0, rvTvTrending.getTop() - 80);
+                }
+            });
+        }
     }
 
     private void setupNavigation() {
@@ -125,17 +157,23 @@ public class TvMainActivity extends AppCompatActivity {
     }
 
     private void loadTvContent() {
-        tvProgressBar.setVisibility(View.VISIBLE);
+        loadTvContent(1);
+    }
 
-        // 1. Trending Anime
-        apiClient.fetchAnimeList("/api/anime/trending", new TvApiClient.ApiCallback<List<TvAnimeItem>>() {
+    private void loadTvContent(int page) {
+        tvProgressBar.setVisibility(View.VISIBLE);
+        this.currentTvPage = page;
+
+        // 1. Trending Anime (with page)
+        apiClient.fetchAnimeList("/api/anime/trending", page, new TvApiClient.ApiCallback<TvApiClient.TvAnimePageResult>() {
             @Override
-            public void onSuccess(List<TvAnimeItem> result) {
+            public void onSuccess(TvApiClient.TvAnimePageResult result) {
                 runOnUiThread(() -> {
                     tvProgressBar.setVisibility(View.GONE);
-                    trendingAdapter.setItems(result);
-                    if (!result.isEmpty() && heroFeaturedItem == null) {
-                        updateHeroSpotlight(result.get(0));
+                    trendingAdapter.setItems(result.items);
+                    updateTvPaginationUi(result.pageInfo);
+                    if (!result.items.isEmpty() && heroFeaturedItem == null) {
+                        updateHeroSpotlight(result.items.get(0));
                     }
                 });
             }
@@ -146,11 +184,11 @@ public class TvMainActivity extends AppCompatActivity {
             }
         });
 
-        // 2. Popular Anime
-        apiClient.fetchAnimeList("/api/anime/popular", new TvApiClient.ApiCallback<List<TvAnimeItem>>() {
+        // 2. Popular Anime (with page)
+        apiClient.fetchAnimeList("/api/anime/popular", page, new TvApiClient.ApiCallback<TvApiClient.TvAnimePageResult>() {
             @Override
-            public void onSuccess(List<TvAnimeItem> result) {
-                runOnUiThread(() -> popularAdapter.setItems(result));
+            public void onSuccess(TvApiClient.TvAnimePageResult result) {
+                runOnUiThread(() -> popularAdapter.setItems(result.items));
             }
 
             @Override
@@ -168,16 +206,40 @@ public class TvMainActivity extends AppCompatActivity {
             public void onError(Exception e) {}
         });
 
-        // 4. Feature Films
-        apiClient.fetchAnimeList("/api/anime/movies", new TvApiClient.ApiCallback<List<TvAnimeItem>>() {
+        // 4. Feature Films (with page)
+        apiClient.fetchAnimeList("/api/anime/movies", page, new TvApiClient.ApiCallback<TvApiClient.TvAnimePageResult>() {
             @Override
-            public void onSuccess(List<TvAnimeItem> result) {
-                runOnUiThread(() -> moviesAdapter.setItems(result));
+            public void onSuccess(TvApiClient.TvAnimePageResult result) {
+                runOnUiThread(() -> moviesAdapter.setItems(result.items));
             }
 
             @Override
             public void onError(Exception e) {}
         });
+    }
+
+    private void updateTvPaginationUi(TvApiClient.PageInfo pageInfo) {
+        if (pageInfo == null || tvTvPageInfo == null) return;
+        this.currentTvPageInfo = pageInfo;
+        this.currentTvPage = pageInfo.currentPage;
+
+        int totalPages = Math.max(pageInfo.lastPage, pageInfo.currentPage);
+        String infoText = "Page " + pageInfo.currentPage + (totalPages > 1 ? " of " + totalPages : "");
+        if (pageInfo.total > 0) {
+            infoText += " • " + pageInfo.total + " titles";
+        }
+        tvTvPageInfo.setText(infoText);
+
+        if (btnTvPrevPage != null) {
+            btnTvPrevPage.setEnabled(pageInfo.currentPage > 1);
+            btnTvPrevPage.setAlpha(pageInfo.currentPage > 1 ? 1.0f : 0.4f);
+        }
+
+        if (btnTvNextPage != null) {
+            boolean hasNext = pageInfo.hasNextPage || pageInfo.currentPage < pageInfo.lastPage;
+            btnTvNextPage.setEnabled(hasNext);
+            btnTvNextPage.setAlpha(hasNext ? 1.0f : 0.4f);
+        }
     }
 
     private void updateHeroSpotlight(TvAnimeItem item) {

@@ -102,6 +102,60 @@
             android:textColor="@color/text_primary" />
     </LinearLayout>
 
+    <!-- Anime Subcategory Filter Chips (Home tab) -->
+    <HorizontalScrollView
+        android:id="@+id/animeChipScrollView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/bg_dark"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="6dp"
+        android:scrollbars="none"
+        android:visibility="visible"
+        app:layout_constraintTop_toBottomOf="@id/searchContainer">
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/animeChipGroup"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:singleSelection="true">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipTrending"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="Trending"
+                android:textColor="@color/text_primary"
+                app:chipBackgroundColor="@color/surface_card"
+                app:chipStrokeColor="@color/surface_card_stroke"
+                app:chipStrokeWidth="1dp" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipPopular"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Most Popular"
+                android:textColor="@color/text_primary"
+                app:chipBackgroundColor="@color/surface_card"
+                app:chipStrokeColor="@color/surface_card_stroke"
+                app:chipStrokeWidth="1dp" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipLatest"
+                style="@style/Widget.MaterialComponents.Chip.Choice"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Latest Releases"
+                android:textColor="@color/text_primary"
+                app:chipBackgroundColor="@color/surface_card"
+                app:chipStrokeColor="@color/surface_card_stroke"
+                app:chipStrokeWidth="1dp" />
+        </com.google.android.material.chip.ChipGroup>
+    </HorizontalScrollView>
+
     <!-- Cartoon Filter Chips Horizontal Scroll -->
     <HorizontalScrollView
         android:id="@+id/chipScrollView"
@@ -112,7 +166,7 @@
         android:paddingVertical="8dp"
         android:scrollbars="none"
         android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/searchContainer">
+        app:layout_constraintTop_toBottomOf="@id/animeChipScrollView">
 
         <com.google.android.material.chip.ChipGroup
             android:id="@+id/cartoonChipGroup"
@@ -194,7 +248,7 @@
         android:id="@+id/swipeRefresh"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        app:layout_constraintBottom_toTopOf="@id/bottomNav"
+        app:layout_constraintBottom_toTopOf="@id/paginationBar"
         app:layout_constraintTop_toBottomOf="@id/chipScrollView">
 
         <androidx.recyclerview.widget.RecyclerView
@@ -205,6 +259,53 @@
             android:padding="8dp"
             tools:listitem="@layout/item_anime_card" />
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+    <!-- Universal Responsive Pagination Bar -->
+    <LinearLayout
+        android:id="@+id/paginationBar"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@color/surface_dark"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp"
+        android:visibility="visible"
+        app:layout_constraintBottom_toTopOf="@id/bottomNav">
+
+        <Button
+            android:id="@+id/btnPrevPage"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_card"
+            android:enabled="false"
+            android:paddingHorizontal="16dp"
+            android:text="‹ Prev"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvPaginationInfo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="Page 1"
+            android:textColor="@color/accent_cyan"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnNextPage"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_card"
+            android:paddingHorizontal="16dp"
+            android:text="Next ›"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary"
+            android:textSize="12sp" />
+    </LinearLayout>
 
     <!-- Loading ProgressBar -->
     <ProgressBar

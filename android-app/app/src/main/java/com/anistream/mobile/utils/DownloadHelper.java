@@ -28,9 +28,11 @@ public class DownloadHelper {
             }
 
             File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "AniStream");
-            if (!dir.exists()) {
-                dir.mkdirs();
-            }
+            try {
+                if (!dir.exists()) {
+                    dir.mkdirs();
+                }
+            } catch (Exception ignored) {}
 
             String cleanTitle = title.replaceAll("[^a-zA-Z0-9_-]", "_").replaceAll("_+", "_");
 
@@ -43,7 +45,11 @@ public class DownloadHelper {
                 subRequest.setDescription("Downloading English Subtitles (." + format.toLowerCase() + ")");
                 subRequest.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
                 subRequest.setMimeType("application/x-subrip");
-                subRequest.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "AniStream/" + subFileName);
+                try {
+                    subRequest.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "AniStream/" + subFileName);
+                } catch (Exception e) {
+                    subRequest.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, subFileName);
+                }
                 manager.enqueue(subRequest);
                 Toast.makeText(context, "Downloading English Subtitles: " + subFileName, Toast.LENGTH_LONG).show();
                 return;
@@ -68,7 +74,11 @@ public class DownloadHelper {
                 request.setMimeType("video/mp4");
             }
 
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "AniStream/" + fileName);
+            try {
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "AniStream/" + fileName);
+            } catch (Exception e) {
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+            }
             manager.enqueue(request);
 
             // Auto-download English subtitles companion with matching base filename
@@ -84,7 +94,11 @@ public class DownloadHelper {
                     subRequest.setDescription("Companion English subtitles for " + quality);
                     subRequest.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
                     subRequest.setMimeType("application/x-subrip");
-                    subRequest.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "AniStream/" + subFileName);
+                    try {
+                        subRequest.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "AniStream/" + subFileName);
+                    } catch (Exception e) {
+                        subRequest.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, subFileName);
+                    }
                     manager.enqueue(subRequest);
                     subQueued = true;
                 } catch (Exception e) {
