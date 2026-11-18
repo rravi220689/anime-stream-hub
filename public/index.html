@@ -503,36 +503,72 @@
 
   <!-- 2. Video Download Manager Modal -->
   <div id="downloadModal" class="modal-backdrop hidden" onclick="if(event.target === this) app.closeDownloadModal()">
-    <div class="modal-card">
+    <div class="modal-card download-modal-card">
       <div class="modal-header">
         <div class="modal-title-group">
-          <i data-lucide="download-cloud"></i>
-          <h3>Download Video Manager</h3>
+          <div class="modal-icon-badge">
+            <i data-lucide="download"></i>
+          </div>
+          <div>
+            <h3>Download Center</h3>
+            <span class="modal-subtitle">Select your preferred resolution & format</span>
+          </div>
         </div>
-        <button class="icon-round-btn" onclick="app.closeDownloadModal()"><i data-lucide="x"></i></button>
+        <button class="icon-round-btn" onclick="app.closeDownloadModal()" title="Close"><i data-lucide="x"></i></button>
       </div>
-      <div class="modal-body">
+
+      <div class="modal-body download-modal-body">
+        <!-- Item Overview Header -->
         <div class="download-item-card">
           <div class="dl-thumb" id="dlThumb"></div>
           <div class="dl-meta">
+            <div class="dl-tag-row">
+              <span id="dlFormatTag" class="dl-tag">HD VIDEO</span>
+              <span id="dlDurationTag" class="dl-tag secondary">24 min</span>
+            </div>
             <h4 id="dlTitle">Video Title</h4>
-            <span id="dlSub" class="dl-sub">Quality: 1080p Full HD</span>
+            <span id="dlSub" class="dl-sub">Ready to download</span>
           </div>
         </div>
 
-        <div class="download-options-list" id="downloadOptionsList">
-          <!-- Populated dynamically with direct download options -->
+        <!-- Format & Quality Filter Chips -->
+        <div class="dl-filter-bar">
+          <span class="dl-filter-label">Quality:</span>
+          <div class="dl-filter-chips">
+            <button class="dl-chip active" data-filter="all" onclick="app.filterDownloadFormats('all', this)">All (6)</button>
+            <button class="dl-chip" data-filter="1080p" onclick="app.filterDownloadFormats('1080p', this)">1080p FHD</button>
+            <button class="dl-chip" data-filter="720p" onclick="app.filterDownloadFormats('720p', this)">720p HD</button>
+            <button class="dl-chip" data-filter="480p" onclick="app.filterDownloadFormats('480p', this)">480p SD</button>
+            <button class="dl-chip" data-filter="360p" onclick="app.filterDownloadFormats('360p', this)">360p Mobile</button>
+            <button class="dl-chip" data-filter="mp3" onclick="app.filterDownloadFormats('mp3', this)">MP3 Audio</button>
+          </div>
         </div>
 
+        <!-- Options List (1080p, 720p, 480p, 360p, MP3, WebM) -->
+        <div class="download-options-list" id="downloadOptionsList">
+          <!-- Populated dynamically with full multi-resolution cards -->
+        </div>
+
+        <!-- Dedicated Fast Mirrors Hub -->
+        <div id="downloadMirrorsSection" class="dl-mirrors-section hidden">
+          <div class="dl-mirrors-header">
+            <i data-lucide="sparkles"></i>
+            <span>Alternative Direct Download Hubs:</span>
+          </div>
+          <div id="downloadMirrorsList" class="dl-mirrors-list"></div>
+        </div>
+
+        <!-- Download Tips Box -->
         <div class="download-tip-box">
-          <i data-lucide="info"></i>
+          <i data-lucide="shield-check"></i>
           <div>
-            <strong>Download Tip:</strong> Direct MP4 files download immediately to your device. For YouTube & embedded series streams, you can use high-speed direct extraction or external HD converters.
+            <strong>High-Speed Direct Downloads:</strong> Tap <b>Download</b> for instant browser save. Tap the copy icon to copy direct link to IDM or external download managers.
           </div>
         </div>
       </div>
+
       <div class="modal-footer">
-        <button class="btn-secondary" onclick="app.closeDownloadModal()">Close</button>
+        <button class="btn-secondary" onclick="app.closeDownloadModal()">Done</button>
       </div>
     </div>
   </div>

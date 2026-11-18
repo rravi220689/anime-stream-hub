@@ -5,8 +5,8 @@
 
 FROM node:22-alpine AS base
 
-# Install curl for healthcheck
-RUN apk add --no-cache curl
+# Install curl and ffmpeg for audio/video streaming & muxing
+RUN apk add --no-cache curl ffmpeg
 
 # Set working directory
 WORKDIR /app
