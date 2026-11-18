@@ -23,7 +23,7 @@ Dedicated native Android client for smartphones and tablets (`com.anistream.mobi
   - Supports downloads across multiple resolutions: 1080p Full HD, 720p HD, 480p SD, 360p, and MP3 audio extraction.
   - Saves directly to public `/sdcard/Download/AniStream/` storage.
 - **Offline Watchlist**: Local `SharedPreferences` persistence for your saved series and movies.
-- **Configurable Server Endpoint**: Tap the Settings cog icon in the top bar to set custom server address (`http://10.0.2.2:5050` for Android Emulator, or LAN IP like `http://192.168.1.X:5050` for physical devices).
+- **Pre-Configured Backend Endpoint**: Pre-configured out of the box to connect directly to `http://rravi.ddns.net:4008`. Also supports custom server overrides via the Settings (⚙️) icon.
 
 ---
 
@@ -42,27 +42,32 @@ Dedicated native Android client for smartphones and tablets (`com.anistream.mobi
 
 ## 🚀 Building & Running
 
-### 1. Build Debug APK
+### 1. Build Signed Production Release APK
 Ensure `JAVA_HOME` points to a full JDK (e.g. OpenJDK 21 or 17 with jlink):
+```bash
+cd android-app
+JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleRelease
+```
+
+The signed release APK will be generated at:
+```
+android-app/app/build/outputs/apk/release/app-release.apk
+```
+(A pre-built signed copy is also available in root `releases/AniStream-Mobile-v1.0.0-release.apk`).
+
+### 2. Build Debug APK
 ```bash
 cd android-app
 JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleDebug
 ```
 
-The APK will be generated at:
-```
-android-app/app/build/outputs/apk/debug/app-debug.apk
-```
-
-### 2. Install on Device or Emulator
+### 3. Install on Device or Emulator
 ```bash
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-### 3. Connect to Backend Server
-1. Launch the AniStream Mobile app.
-2. Tap the **Settings** (⚙️) icon in the top right.
-3. Enter your backend server IP:
-   - For Android Emulator: `http://10.0.2.2:5050`
-   - For Physical Device on Wi-Fi: `http://<your-computer-local-ip>:5050`
-4. Tap **Connect & Save**.
+### 4. Connect to Backend Server
+By default, the app is configured to connect to `http://rravi.ddns.net:4008`. You can change this anytime:
+1. Tap the **Settings** (⚙️) icon in the top right.
+2. Enter your custom server address.
+3. Tap **Connect & Save**.

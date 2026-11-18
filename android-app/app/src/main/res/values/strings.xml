@@ -13,5 +13,5 @@
     <string name="server_settings">Server Settings</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
-    <string name="server_url_hint">http://10.0.2.2:5050</string>
+    <string name="server_url_hint">http://rravi.ddns.net:4008</string>
 </resources>

@@ -28,7 +28,8 @@ Dedicated 10-foot Leanback Android TV application (`com.anistream.tv`) designed 
   - Official 16:9 Android TV Leanback Banner (`@drawable/tv_banner`) featuring the AniStream Cyberpunk emblem, typography, and 4K Ultra HD badge.
   - Matching adaptive TV app icons (`@mipmap/ic_launcher` & `@mipmap/ic_launcher_round`).
 - **Server Address Configuration**:
-  - D-pad accessible Settings button in the top bar to set backend IP (`http://10.0.2.2:5050` or LAN Wi-Fi IP).
+  - Pre-configured to connect directly to `http://rravi.ddns.net:4008`.
+  - D-pad accessible Settings button in the top bar to set custom backend IP if desired.
 
 ---
 
@@ -47,7 +48,19 @@ Dedicated 10-foot Leanback Android TV application (`com.anistream.tv`) designed 
 
 ## 🚀 Building & Running
 
-### 1. Build Debug APK
+### 1. Build Signed Production Release APK
+```bash
+cd android-tv
+JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleRelease
+```
+
+The signed release APK will be generated at:
+```
+android-tv/app/build/outputs/apk/release/app-release.apk
+```
+(A pre-built signed copy is also available in root `releases/AniStream-TV-v1.0.0-release.apk`).
+
+### 2. Build Debug APK
 ```bash
 cd android-tv
 JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleDebug

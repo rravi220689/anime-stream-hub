@@ -18,7 +18,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:text="Enter backend server address (e.g. http://10.0.2.2:5050 for emulator or your LAN IP like http://192.168.1.5:5050)"
+        android:text="Enter backend server address (default: http://rravi.ddns.net:4008 or custom LAN IP)"
         android:textColor="@color/text_muted"
         android:textSize="12sp" />
 

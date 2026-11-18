@@ -18,7 +18,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="Set the AniStream backend server address (e.g. http://10.0.2.2:5050 or your local PC LAN IP like http://192.168.1.10:5050)"
+        android:text="Set the AniStream backend server address (default: http://rravi.ddns.net:4008 or custom LAN IP)"
         android:textColor="@color/tv_text_muted"
         android:textSize="13sp" />
 
@@ -29,7 +29,7 @@
         android:layout_marginTop="16dp"
         android:background="@drawable/tv_button_selector"
         android:focusable="true"
-        android:hint="http://10.0.2.2:5050"
+        android:hint="http://rravi.ddns.net:4008"
         android:inputType="textUri"
         android:paddingHorizontal="16dp"
         android:textColor="@color/tv_text_primary"

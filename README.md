@@ -163,27 +163,31 @@ The application includes production-optimized containerization using multi-stage
 
 ## 📱 Subprojects: Native Android & Android TV Apps
 
-In addition to the responsive Web app, this repository contains **two dedicated native Android subprojects**:
+In addition to the responsive Web app, this repository contains **two dedicated native Android subprojects** pre-configured to connect to backend server `http://rravi.ddns.net:4008`:
 
 ### 1. 📱 AniStream Mobile (`android-app/`)
 - **Package**: `com.anistream.mobile`
 - **Target**: Android phones & tablets (SDK 24 - 34)
-- **Features**: Bottom navigation, cartoon category chips, offline watchlist, ExoPlayer Media3 player with PiP (Picture-in-Picture), and multi-resolution Download Manager (1080p, 720p, 480p, MP3).
-- **Build APK**:
+- **Features**: Bottom navigation, cartoon category chips, offline watchlist, ExoPlayer Media3 player with Fullscreen auto-rotation, aspect ratio cycling (Fit, Zoom, Stretch), PiP (Picture-in-Picture), custom cyberpunk adaptive app icons, and multi-resolution Download Manager (1080p, 720p, 480p, MP3).
+- **Default Server**: `http://rravi.ddns.net:4008` (configurable in settings)
+- **Pre-Built Signed Release**: [`releases/AniStream-Mobile-v1.0.0-release.apk`](releases/AniStream-Mobile-v1.0.0-release.apk)
+- **Build Release APK**:
   ```bash
-  cd android-app && JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleDebug
+  cd android-app && JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleRelease
   ```
-  Output: `android-app/app/build/outputs/apk/debug/app-debug.apk`
+  Output: `android-app/app/build/outputs/apk/release/app-release.apk`
 
 ### 2. 📺 AniStream TV (`android-tv/`)
 - **Package**: `com.anistream.tv`
 - **Target**: Android TV, Google TV & Fire TV (SDK 24 - 34)
-- **Features**: 10-foot Leanback UI, D-pad remote navigation with focus scaling & glowing borders, dynamic Spotlight hero banner, 4 horizontal category rails, and remote-friendly fullscreen TV player with D-pad play/pause/seek controls.
-- **Build APK**:
+- **Features**: 10-foot Leanback UI, D-pad remote navigation with focus scaling & glowing borders, dynamic Spotlight hero banner, 4 horizontal category rails, remote-friendly fullscreen TV player with D-pad aspect ratio toggle (`Fit`, `Zoom`, `Stretch`), center badge indicators, and matching TV banner.
+- **Default Server**: `http://rravi.ddns.net:4008` (configurable in settings)
+- **Pre-Built Signed Release**: [`releases/AniStream-TV-v1.0.0-release.apk`](releases/AniStream-TV-v1.0.0-release.apk)
+- **Build Release APK**:
   ```bash
-  cd android-tv && JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleDebug
+  cd android-tv && JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleRelease
   ```
-  Output: `android-tv/app/build/outputs/apk/debug/app-debug.apk`
+  Output: `android-tv/app/build/outputs/apk/release/app-release.apk`
 
 ---
 
@@ -196,8 +200,13 @@ anime-stream-hub/
 ├── Dockerfile            # Container deployment configuration
 ├── docker-compose.yml    # Multi-container orchestration
 ├── README.md             # Documentation
+├── keystore/             # 🔐 Production release keystore & signing specs
+├── releases/             # 📦 Signed Production Release APKs ready to install
+│   ├── AniStream-Mobile-v1.0.0-release.apk
+│   └── AniStream-TV-v1.0.0-release.apk
 ├── public/               # Web client SPA
 │   ├── index.html        # Responsive HTML5 layout
+│   ├── favicon.svg       # Cyberpunk neon brand SVG icon
 │   ├── css/style.css     # Glassmorphism & auto-adjusting responsive grid
 │   └── js/app.js         # Client controller, HLS player & download triggers
 ├── android-app/          # 📱 Standalone Android Phone/Tablet Subproject
@@ -205,14 +214,16 @@ anime-stream-hub/
 │   ├── settings.gradle
 │   ├── gradlew
 │   └── app/
-│       ├── build.gradle  # Mobile app build config & ExoPlayer dependencies
+│       ├── build.gradle  # Mobile app build config, signing config & ExoPlayer dependencies
+│       ├── anistream-release.jks # Release signing keystore
 │       └── src/main/     # Java code, layouts, and drawables
 └── android-tv/           # 📺 Standalone Android TV Subproject
     ├── build.gradle      # Root Gradle script for TV app
     ├── settings.gradle
     ├── gradlew
     └── app/
-        ├── build.gradle  # TV app build config & Leanback UI dependencies
+        ├── build.gradle  # TV app build config, signing config & Leanback UI dependencies
+        ├── anistream-release.jks # Release signing keystore
         └── src/main/     # Java code, TV rails, D-pad remote handlers
 ```
 

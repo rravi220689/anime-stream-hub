@@ -29,7 +29,7 @@ public class ApiClient {
 
     private static final String PREF_NAME = "anistream_prefs";
     private static final String KEY_SERVER_URL = "server_url";
-    public static final String DEFAULT_SERVER_URL = "http://10.0.2.2:5050";
+    public static final String DEFAULT_SERVER_URL = "http://rravi.ddns.net:4008";
 
     private ApiClient(Context context) {
         this.prefs = context.getApplicationContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
