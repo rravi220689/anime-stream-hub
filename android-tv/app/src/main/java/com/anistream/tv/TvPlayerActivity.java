@@ -11,11 +11,13 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.OptIn;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -31,6 +33,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.anistream.tv.adapters.TvEpisodeAdapter;
 import com.anistream.tv.models.TvAnimeItem;
+import com.anistream.tv.utils.TvApiClient;
 import com.anistream.tv.utils.TvFocusHelper;
 
 public class TvPlayerActivity extends AppCompatActivity {
@@ -43,6 +46,7 @@ public class TvPlayerActivity extends AppCompatActivity {
     private TextView tvTvAspectBadge;
     private Button btnTvBack;
     private Button btnTvAspectRatio;
+    private Button btnTvServerSettings;
     private Button btnTvRewind;
     private Button btnTvPlayPause;
     private Button btnTvForward;
@@ -104,6 +108,7 @@ public class TvPlayerActivity extends AppCompatActivity {
         tvTvAspectBadge = findViewById(R.id.tvTvAspectBadge);
         btnTvBack = findViewById(R.id.btnTvBack);
         btnTvAspectRatio = findViewById(R.id.btnTvAspectRatio);
+        btnTvServerSettings = findViewById(R.id.btnTvServerSettings);
         btnTvRewind = findViewById(R.id.btnTvRewind);
         btnTvPlayPause = findViewById(R.id.btnTvPlayPause);
         btnTvForward = findViewById(R.id.btnTvForward);
@@ -111,6 +116,10 @@ public class TvPlayerActivity extends AppCompatActivity {
 
         TvFocusHelper.applyTvFocusAnimation(btnTvBack);
         TvFocusHelper.applyTvFocusAnimation(btnTvAspectRatio);
+        if (btnTvServerSettings != null) {
+            TvFocusHelper.applyTvFocusAnimation(btnTvServerSettings);
+            btnTvServerSettings.setOnClickListener(v -> showTvSettingsDialog());
+        }
         TvFocusHelper.applyTvFocusAnimation(btnTvRewind);
         TvFocusHelper.applyTvFocusAnimation(btnTvPlayPause);
         TvFocusHelper.applyTvFocusAnimation(btnTvForward);
@@ -345,6 +354,78 @@ public class TvPlayerActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         if (tvPlayerWebView != null) tvPlayerWebView.onResume();
+    }
+
+    private void showTvSettingsDialog() {
+        TvApiClient apiClient = TvApiClient.getInstance(this);
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_tv_server, null);
+        EditText etServerUrl = dialogView.findViewById(R.id.etTvServerUrl);
+        Button btnPresetDefault = dialogView.findViewById(R.id.btnTvPresetDefault);
+        Button btnPresetEmulator = dialogView.findViewById(R.id.btnTvPresetEmulator);
+        Button btnTestServer = dialogView.findViewById(R.id.btnTvTestServer);
+        TextView tvConnectionStatus = dialogView.findViewById(R.id.tvTvConnectionStatus);
+        Button btnCancel = dialogView.findViewById(R.id.btnCancelTvServer);
+        Button btnSave = dialogView.findViewById(R.id.btnSaveTvServer);
+
+        TvFocusHelper.applyTvFocusAnimation(btnPresetDefault);
+        TvFocusHelper.applyTvFocusAnimation(btnPresetEmulator);
+        TvFocusHelper.applyTvFocusAnimation(btnTestServer);
+        TvFocusHelper.applyTvFocusAnimation(btnCancel);
+        TvFocusHelper.applyTvFocusAnimation(btnSave);
+
+        etServerUrl.setText(apiClient.getServerUrl());
+
+        btnPresetDefault.setOnClickListener(v -> etServerUrl.setText("http://rravi.ddns.net:4008"));
+        btnPresetEmulator.setOnClickListener(v -> etServerUrl.setText("http://10.0.2.2:5050"));
+
+        btnTestServer.setOnClickListener(v -> {
+            String testUrl = etServerUrl.getText().toString().trim();
+            if (testUrl.isEmpty()) {
+                tvConnectionStatus.setText("Enter a URL first");
+                tvConnectionStatus.setTextColor(0xFFFF5555);
+                return;
+            }
+            tvConnectionStatus.setText("Testing connection...");
+            tvConnectionStatus.setTextColor(0xFF00F0FF);
+            apiClient.testServerConnection(testUrl, new TvApiClient.ApiCallback<Boolean>() {
+                @Override
+                public void onSuccess(Boolean result) {
+                    runOnUiThread(() -> {
+                        tvConnectionStatus.setText("✓ Connected! Server online");
+                        tvConnectionStatus.setTextColor(0xFF00FF88);
+                    });
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    runOnUiThread(() -> {
+                        tvConnectionStatus.setText("✗ Failed: " + e.getMessage());
+                        tvConnectionStatus.setTextColor(0xFFFF5555);
+                    });
+                }
+            });
+        });
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .create();
+
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        btnSave.setOnClickListener(v -> {
+            String newUrl = etServerUrl.getText().toString().trim();
+            if (!newUrl.isEmpty()) {
+                apiClient.setServerUrl(newUrl);
+                Toast.makeText(this, "TV Server updated to: " + newUrl, Toast.LENGTH_SHORT).show();
+                dialog.dismiss();
+                loadMedia();
+            }
+        });
+
+        dialog.show();
     }
 
     @Override

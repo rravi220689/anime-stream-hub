@@ -14,4 +14,5 @@ public class DownloadOption implements Serializable {
     public boolean recommended;
     public String directUrl;
     public String externalUrl;
+    public String subtitleUrl;
 }

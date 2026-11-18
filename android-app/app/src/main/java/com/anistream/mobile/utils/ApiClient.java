@@ -11,6 +11,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -186,13 +188,26 @@ public class ApiClient {
         });
     }
 
-    // 4. Resolve Download Formats (1080p, 720p, 480p, 360p, MP3)
+    // 4. Resolve Download Formats (1080p, 720p, 480p, 360p, MP3, English Subtitles)
     public void resolveDownloads(String streamUrl, String title, String duration, String type, String id, ApiCallback<List<DownloadOption>> callback) {
-        String url = getServerUrl() + "/api/download/resolve?url=" + streamUrl
-                + "&title=" + title
-                + "&duration=" + duration
-                + "&type=" + type
-                + "&id=" + (id != null ? id : "");
+        String encUrl = "";
+        String encTitle = "";
+        String encDuration = "";
+        String encType = "";
+        String encId = "";
+        try {
+            encUrl = URLEncoder.encode(streamUrl != null ? streamUrl : "", StandardCharsets.UTF_8.name());
+            encTitle = URLEncoder.encode(title != null ? title : "", StandardCharsets.UTF_8.name());
+            encDuration = URLEncoder.encode(duration != null ? duration : "", StandardCharsets.UTF_8.name());
+            encType = URLEncoder.encode(type != null ? type : "", StandardCharsets.UTF_8.name());
+            encId = URLEncoder.encode(id != null ? id : "", StandardCharsets.UTF_8.name());
+        } catch (Exception ignored) {}
+
+        String url = getServerUrl() + "/api/download/resolve?url=" + encUrl
+                + "&title=" + encTitle
+                + "&duration=" + encDuration
+                + "&type=" + encType
+                + "&id=" + encId;
 
         Request request = new Request.Builder().url(url).build();
         client.newCall(request).enqueue(new Callback() {
@@ -212,16 +227,60 @@ public class ApiClient {
                     JsonObject root = gson.fromJson(jsonStr, JsonObject.class);
                     List<DownloadOption> options = new ArrayList<>();
 
+                    String fallbackSubtitleUrl = null;
+                    if (root.has("subtitleUrl") && !root.get("subtitleUrl").isJsonNull()) {
+                        fallbackSubtitleUrl = root.get("subtitleUrl").getAsString();
+                    }
+
                     if (root.has("formats") && root.get("formats").isJsonArray()) {
                         JsonArray arr = root.getAsJsonArray("formats");
                         for (JsonElement el : arr) {
                             DownloadOption opt = gson.fromJson(el, DownloadOption.class);
-                            if (opt != null) options.add(opt);
+                            if (opt != null) {
+                                if ((opt.subtitleUrl == null || opt.subtitleUrl.isEmpty()) && fallbackSubtitleUrl != null && !"mp3".equalsIgnoreCase(opt.format)) {
+                                    opt.subtitleUrl = fallbackSubtitleUrl;
+                                }
+                                options.add(opt);
+                            }
                         }
                     }
                     callback.onSuccess(options);
                 } catch (Exception e) {
                     callback.onError(e);
+                }
+            }
+        });
+    }
+
+    // 5. Test Server Connection
+    public void testServerConnection(String targetUrl, ApiCallback<Boolean> callback) {
+        if (targetUrl == null || targetUrl.trim().isEmpty()) {
+            callback.onError(new IllegalArgumentException("URL cannot be empty"));
+            return;
+        }
+        String cleanUrl = targetUrl.trim();
+        if (cleanUrl.endsWith("/")) {
+            cleanUrl = cleanUrl.substring(0, cleanUrl.length() - 1);
+        }
+        String testEndpoint = cleanUrl + "/api/anime/trending?page=1";
+        OkHttpClient testClient = client.newBuilder()
+                .connectTimeout(5, TimeUnit.SECONDS)
+                .readTimeout(5, TimeUnit.SECONDS)
+                .build();
+
+        Request req = new Request.Builder().url(testEndpoint).build();
+        testClient.newCall(req).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                callback.onError(e);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) {
+                if (response.isSuccessful()) {
+                    callback.onSuccess(true);
+                } else {
+                    callback.onError(new IOException("Server responded with HTTP " + response.code()));
                 }
             }
         });

@@ -196,13 +196,51 @@ public class TvMainActivity extends AppCompatActivity {
     private void showTvSettingsDialog() {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_tv_server, null);
         EditText etServerUrl = dialogView.findViewById(R.id.etTvServerUrl);
+        Button btnPresetDefault = dialogView.findViewById(R.id.btnTvPresetDefault);
+        Button btnPresetEmulator = dialogView.findViewById(R.id.btnTvPresetEmulator);
+        Button btnTestServer = dialogView.findViewById(R.id.btnTvTestServer);
+        TextView tvConnectionStatus = dialogView.findViewById(R.id.tvTvConnectionStatus);
         Button btnCancel = dialogView.findViewById(R.id.btnCancelTvServer);
         Button btnSave = dialogView.findViewById(R.id.btnSaveTvServer);
 
+        TvFocusHelper.applyTvFocusAnimation(btnPresetDefault);
+        TvFocusHelper.applyTvFocusAnimation(btnPresetEmulator);
+        TvFocusHelper.applyTvFocusAnimation(btnTestServer);
         TvFocusHelper.applyTvFocusAnimation(btnCancel);
         TvFocusHelper.applyTvFocusAnimation(btnSave);
 
         etServerUrl.setText(apiClient.getServerUrl());
+
+        btnPresetDefault.setOnClickListener(v -> etServerUrl.setText("http://rravi.ddns.net:4008"));
+        btnPresetEmulator.setOnClickListener(v -> etServerUrl.setText("http://10.0.2.2:5050"));
+
+        btnTestServer.setOnClickListener(v -> {
+            String testUrl = etServerUrl.getText().toString().trim();
+            if (testUrl.isEmpty()) {
+                tvConnectionStatus.setText("Enter a URL first");
+                tvConnectionStatus.setTextColor(0xFFFF5555);
+                return;
+            }
+            tvConnectionStatus.setText("Testing connection...");
+            tvConnectionStatus.setTextColor(0xFF00F0FF);
+            apiClient.testServerConnection(testUrl, new TvApiClient.ApiCallback<Boolean>() {
+                @Override
+                public void onSuccess(Boolean result) {
+                    runOnUiThread(() -> {
+                        tvConnectionStatus.setText("✓ Connected! Server online");
+                        tvConnectionStatus.setTextColor(0xFF00FF88);
+                    });
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    runOnUiThread(() -> {
+                        tvConnectionStatus.setText("✗ Failed: " + e.getMessage());
+                        tvConnectionStatus.setTextColor(0xFFFF5555);
+                    });
+                }
+            });
+        });
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(dialogView)

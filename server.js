@@ -634,6 +634,182 @@ function calculateFileSizes(durationStr, isMovie = false) {
   };
 }
 
+// Helper to extract animeembed URL from various query formats
+function extractAnimeEmbedUrl(rawUrl, id, episode = 1) {
+  if (rawUrl && typeof rawUrl === 'string' && rawUrl.includes('animeembed.com/embed/')) {
+    return rawUrl;
+  }
+  const cleanId = id || (rawUrl && typeof rawUrl === 'string' && rawUrl.match(/(?:ani|mal)\/(\d+)/)?.[1]);
+  const ep = episode || (rawUrl && typeof rawUrl === 'string' && rawUrl.match(/\/(\d+)(?:\?|$)/)?.[1]) || 1;
+  if (cleanId) {
+    return `https://animeembed.com/embed/ani/${cleanId}/${ep}?accent=6366f1`;
+  }
+  return null;
+}
+
+// Helper to resolve full anime stream M3U8 and English subtitles from animeembed.com
+async function resolveAnimeEmbedSource(embedUrlOrId, epNum = 1) {
+  const embedUrl = extractAnimeEmbedUrl(embedUrlOrId, embedUrlOrId, epNum) ||
+    (typeof embedUrlOrId === 'string' && embedUrlOrId.startsWith('http') ? embedUrlOrId : `https://animeembed.com/embed/ani/${embedUrlOrId}/${epNum}?accent=6366f1`);
+
+  const pageResp = await axios.get(embedUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    },
+    timeout: 12000
+  });
+
+  const configMatch = pageResp.data.match(/<script type="application\/json" id="config">(.*?)<\/script>/s);
+  if (!configMatch) {
+    throw new Error('Anime embed configuration not found');
+  }
+
+  const config = JSON.parse(configMatch[1]);
+  const session = config.session;
+  if (!session) {
+    throw new Error('Session token not found in config');
+  }
+
+  const browserHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    'Referer': embedUrl,
+    'Origin': 'https://animeembed.com',
+    'Accept': '*/*',
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'same-origin'
+  };
+
+  const srcResp = await axios.get(`https://animeembed.com/internal/source?session=${session}&server=1`, {
+    headers: browserHeaders,
+    timeout: 12000
+  });
+
+  const sourceData = srcResp.data;
+  const masterPath = sourceData.source;
+  if (!masterPath) {
+    throw new Error('No video stream source returned');
+  }
+
+  let subtitlePath = null;
+  if (Array.isArray(sourceData.tracks)) {
+    const engTrack = sourceData.tracks.find(t => (t.label && t.label.toLowerCase().includes('english')) || (t.file && t.file.toLowerCase().includes('eng'))) || sourceData.tracks[0];
+    if (engTrack && engTrack.file) {
+      subtitlePath = engTrack.file;
+    }
+  }
+
+  let subplaylistUrl = `https://animeembed.com${masterPath}`;
+  try {
+    const masterResp = await axios.get(`https://animeembed.com${masterPath}`, {
+      headers: browserHeaders,
+      timeout: 12000
+    });
+    const lines = masterResp.data.split('\n');
+    const subLine = lines.find(l => l.trim().startsWith('/media/'));
+    if (subLine) {
+      subplaylistUrl = `https://animeembed.com${subLine.trim()}`;
+    }
+  } catch (mErr) {
+    console.warn('Could not read master M3U8 subplaylist, using master directly:', mErr.message);
+  }
+
+  return {
+    embedUrl,
+    session,
+    masterM3u8Url: `https://animeembed.com${masterPath}`,
+    subplaylistUrl,
+    subtitlePath,
+    subtitleUrl: subtitlePath ? `https://animeembed.com${subtitlePath}` : null,
+    tracks: sourceData.tracks || []
+  };
+}
+
+// Convert WebVTT subtitles to SubRip (SRT) format
+function vttToSrt(vttText) {
+  const lines = vttText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const srtLines = [];
+  let index = 1;
+  let inHeader = true;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (inHeader) {
+      if (line === '' && i > 0) {
+        inHeader = false;
+      }
+      continue;
+    }
+    if (line.includes('-->')) {
+      srtLines.push(String(index++));
+      const formattedTimestamp = line.replace(/(\d{2}:\d{2}:\d{2})\.(\d{3})/g, '$1,$2');
+      srtLines.push(formattedTimestamp);
+    } else if (line !== '') {
+      srtLines.push(line);
+    } else {
+      srtLines.push('');
+    }
+  }
+  return srtLines.join('\r\n');
+}
+
+// 9a. Subtitle Downloader Endpoint (.srt and .vtt)
+app.get('/api/download/subtitle', async (req, res) => {
+  try {
+    const rawUrl = req.query.url || '';
+    const title = req.query.title || 'anime_episode';
+    const reqFormat = (req.query.format || 'srt').toLowerCase();
+    const episode = req.query.episode || '1';
+
+    let subtitleMediaUrl = req.query.subUrl || '';
+    let embedUrl = rawUrl;
+
+    if (!subtitleMediaUrl) {
+      const resolved = await resolveAnimeEmbedSource(rawUrl, episode);
+      subtitleMediaUrl = resolved.subtitleUrl;
+      embedUrl = resolved.embedUrl;
+    }
+
+    if (!subtitleMediaUrl) {
+      return res.status(404).send('No English subtitles found for this episode');
+    }
+
+    const browserHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Referer': embedUrl || 'https://animeembed.com/',
+      'Origin': 'https://animeembed.com',
+      'Accept': '*/*'
+    };
+
+    const subResp = await axios.get(subtitleMediaUrl, {
+      headers: browserHeaders,
+      timeout: 15000,
+      responseType: 'text'
+    });
+
+    const cleanName = title.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').slice(0, 80) || 'subtitles';
+    const filename = `${cleanName}.${reqFormat}`;
+
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', reqFormat === 'srt' ? 'application/x-subrip; charset=utf-8' : 'text/vtt; charset=utf-8');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    if (req.method === 'HEAD') {
+      return res.end();
+    }
+
+    if (reqFormat === 'srt') {
+      res.send(vttToSrt(subResp.data));
+    } else {
+      res.send(subResp.data);
+    }
+  } catch (err) {
+    console.error('Subtitle download proxy error:', err.message);
+    res.status(500).send('Failed to stream subtitles: ' + err.message);
+  }
+});
+
 // 9. Comprehensive Multi-Resolution Video Downloader Resolver (1080p, 720p, 480p, 360p, MP3, WebM)
 app.get('/api/download/resolve', async (req, res) => {
   try {
@@ -643,16 +819,32 @@ app.get('/api/download/resolve', async (req, res) => {
     const type = req.query.type || 'video';
     const isMovie = req.query.format === 'MOVIE' || title.toLowerCase().includes('movie');
     const sizes = calculateFileSizes(duration, isMovie);
+    const episode = req.query.episode || '1';
 
     const safeTitle = encodeURIComponent(title.replace(/[^a-zA-Z0-9 _-]/g, '').trim());
 
-    // Check if YouTube
+    const isAnime = type === 'anime' || videoUrl.includes('animeembed.com') || videoUrl.includes('/embed/ani/');
     const ytMatch = videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([\w-]{11})/i);
     let videoId = ytMatch ? ytMatch[1] : (type === 'youtube' ? req.query.id : null);
     const isDirectVideo = videoUrl.includes('.mp4') || videoUrl.includes('.webm');
 
-    // If type is anime or videoId not yet resolved and not a direct video file, resolve via YouTube search
-    if (!videoId && !isDirectVideo) {
+    let resolvedAnime = null;
+    let subtitleUrl = null;
+    let subtitleVttUrl = null;
+
+    if (isAnime) {
+      try {
+        resolvedAnime = await resolveAnimeEmbedSource(videoUrl || req.query.id, episode);
+        if (resolvedAnime && resolvedAnime.subtitleUrl) {
+          const subParamUrl = resolvedAnime.embedUrl || videoUrl;
+          subtitleUrl = `/api/download/subtitle?url=${encodeURIComponent(subParamUrl)}&title=${encodeURIComponent(title)}&format=srt`;
+          subtitleVttUrl = `/api/download/subtitle?url=${encodeURIComponent(subParamUrl)}&title=${encodeURIComponent(title)}&format=vtt`;
+        }
+      } catch (aErr) {
+        console.warn('Anime stream pre-resolution:', aErr.message);
+      }
+    } else if (!videoId && !isDirectVideo) {
+      // For YouTube cartoons/videos, search YouTube but filter out short clips
       try {
         const cleanQuery = title.replace(/\s+/g, ' ').trim();
         const searchResults = await searchYouTube(cleanQuery, 5);
@@ -670,7 +862,8 @@ app.get('/api/download/resolve', async (req, res) => {
       p.set('title', title);
       p.set('quality', quality);
       p.set('format', format);
-      p.set('type', type);
+      p.set('type', isAnime ? 'anime' : type);
+      if (episode) p.set('episode', episode);
       if (videoId) p.set('id', videoId);
       if (videoUrl) p.set('url', videoUrl);
       return `/api/download/file?${p.toString()}`;
@@ -688,7 +881,8 @@ app.get('/api/download/resolve', async (req, res) => {
         bitrate: '~3.2 Mbps',
         recommended: true,
         directUrl: buildDirectUrl('1080p', 'mp4'),
-        externalUrl: videoId ? `https://cobalt.tools/#https://www.youtube.com/watch?v=${videoId}` : (videoUrl || null)
+        externalUrl: videoId ? `https://cobalt.tools/#https://www.youtube.com/watch?v=${videoId}` : (videoUrl || null),
+        subtitleUrl: subtitleUrl
       },
       {
         quality: '720p',
@@ -701,7 +895,8 @@ app.get('/api/download/resolve', async (req, res) => {
         bitrate: '~1.8 Mbps',
         recommended: false,
         directUrl: buildDirectUrl('720p', 'mp4'),
-        externalUrl: videoId ? `https://cobalt.tools/#https://www.youtube.com/watch?v=${videoId}` : (videoUrl || null)
+        externalUrl: videoId ? `https://cobalt.tools/#https://www.youtube.com/watch?v=${videoId}` : (videoUrl || null),
+        subtitleUrl: subtitleUrl
       },
       {
         quality: '480p',
@@ -714,7 +909,8 @@ app.get('/api/download/resolve', async (req, res) => {
         bitrate: '~950 kbps',
         recommended: false,
         directUrl: buildDirectUrl('480p', 'mp4'),
-        externalUrl: videoId ? `https://en.savefrom.net/1-youtube-video-downloader-4vA/?url=https://youtube.com/watch?v=${videoId}` : (videoUrl || null)
+        externalUrl: videoId ? `https://en.savefrom.net/1-youtube-video-downloader-4vA/?url=https://youtube.com/watch?v=${videoId}` : (videoUrl || null),
+        subtitleUrl: subtitleUrl
       },
       {
         quality: '360p',
@@ -727,7 +923,8 @@ app.get('/api/download/resolve', async (req, res) => {
         bitrate: '~500 kbps',
         recommended: false,
         directUrl: buildDirectUrl('360p', 'mp4'),
-        externalUrl: videoId ? `https://www.y2mate.com/youtube/${videoId}` : (videoUrl || null)
+        externalUrl: videoId ? `https://www.y2mate.com/youtube/${videoId}` : (videoUrl || null),
+        subtitleUrl: subtitleUrl
       },
       {
         quality: '320kbps',
@@ -740,7 +937,8 @@ app.get('/api/download/resolve', async (req, res) => {
         bitrate: '320 kbps MP3',
         recommended: false,
         directUrl: buildDirectUrl('320kbps', 'mp3'),
-        externalUrl: videoId ? `https://www.y2mate.com/youtube-mp3/${videoId}` : (videoUrl || null)
+        externalUrl: videoId ? `https://www.y2mate.com/youtube-mp3/${videoId}` : (videoUrl || null),
+        subtitleUrl: null
       },
       {
         quality: '720p',
@@ -753,9 +951,28 @@ app.get('/api/download/resolve', async (req, res) => {
         bitrate: '~1.5 Mbps VP9',
         recommended: false,
         directUrl: buildDirectUrl('720p', 'webm'),
-        externalUrl: videoId ? `https://cobalt.tools/#https://www.youtube.com/watch?v=${videoId}` : (videoUrl || null)
+        externalUrl: videoId ? `https://cobalt.tools/#https://www.youtube.com/watch?v=${videoId}` : (videoUrl || null),
+        subtitleUrl: subtitleUrl
       }
     ];
+
+    // Add dedicated subtitle download option row
+    if (subtitleUrl) {
+      resolutions.push({
+        quality: 'English Subtitles',
+        format: 'srt',
+        name: 'English Subtitles (.srt)',
+        badge: 'ENG SUB',
+        badgeType: 'sub',
+        size: '~45 KB',
+        resolution: 'Text/Captions',
+        bitrate: 'UTF-8 SRT',
+        recommended: false,
+        directUrl: subtitleUrl,
+        externalUrl: resolvedAnime?.subtitleUrl || null,
+        subtitleUrl: subtitleUrl
+      });
+    }
 
     // Dedicated fast mirrors & helper links
     const mirrors = [];
@@ -766,20 +983,38 @@ app.get('/api/download/resolve', async (req, res) => {
         { name: 'SaveFrom Video Hub', url: `https://en.savefrom.net/1-youtube-video-downloader-4vA/?url=https://youtube.com/watch?v=${videoId}`, note: 'Direct Mobile Downloads' }
       );
     }
-    if (type === 'anime') {
+    if (isAnime) {
       mirrors.push(
         { name: 'AnimePahe Download Portal', url: `https://anitaku.to/search.html?keyword=${safeTitle}`, note: '720p & 1080p Direct Mirrors' },
         { name: 'Gogoanime Direct Server', url: `https://anitaku.to/search.html?keyword=${safeTitle}`, note: 'Episode Download Mirror' }
       );
     }
 
+    const subtitlesList = [];
+    if (subtitleUrl) {
+      subtitlesList.push({
+        language: 'English',
+        format: 'srt',
+        url: subtitleUrl
+      });
+      if (subtitleVttUrl) {
+        subtitlesList.push({
+          language: 'English',
+          format: 'vtt',
+          url: subtitleVttUrl
+        });
+      }
+    }
+
     res.json({
       success: true,
       title,
-      type: ytMatch ? 'youtube' : type,
+      type: isAnime ? 'anime' : (ytMatch ? 'youtube' : type),
       videoId,
       sizes,
       formats: resolutions,
+      subtitleUrl: subtitleUrl,
+      subtitles: subtitlesList,
       mirrors,
       rawUrl: videoUrl
     });
@@ -796,38 +1031,87 @@ app.get('/api/download/file', async (req, res) => {
     const format = (req.query.format || 'mp4').toLowerCase();
     const type = req.query.type || 'video';
     const fileUrl = req.query.url || '';
+    const episode = req.query.episode || '1';
     let videoId = req.query.videoId || req.query.id || '';
 
-    // If no videoId provided but URL is YouTube
-    if (!videoId && fileUrl) {
-      const ytMatch = fileUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([\w-]{11})/i);
-      if (ytMatch) videoId = ytMatch[1];
-    }
-
-    // If still no videoId, but type is anime and not a direct file URL, resolve via YouTube search
-    if (!videoId && (!fileUrl || (!fileUrl.includes('.mp4') && !fileUrl.includes('.webm')))) {
-      try {
-        const cleanQuery = title.replace(/\s+/g, ' ').trim();
-        const searchResults = await searchYouTube(cleanQuery, 3);
-        if (searchResults && searchResults.length > 0) {
-          videoId = searchResults[0].id;
-        }
-      } catch (e) {}
-    }
+    const isAnime = type === 'anime' || fileUrl.includes('animeembed.com') || fileUrl.includes('/embed/ani/');
 
     const cleanName = title.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').slice(0, 80) || 'video';
     const filename = `${cleanName}_${quality}.${format}`;
 
     // Common headers enforcing genuine download to Downloads folder
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Type', format === 'mp3' ? 'audio/mpeg' : (format === 'webm' ? 'video/webm' : 'video/mp4'));
     res.setHeader('X-Content-Type-Options', 'nosniff');
 
     if (req.method === 'HEAD') {
       return res.end();
     }
 
-    // 1. YouTube streaming via @distube/ytdl-core + ffmpeg muxing
+    // 1. ANIME: Stream directly from animeembed HLS using FFmpeg (remux to MP4/MP3)
+    // NEVER fall back to YouTube trailers for anime!
+    if (isAnime) {
+      const resolved = await resolveAnimeEmbedSource(fileUrl || req.query.id, episode);
+      const subUrl = resolved.subplaylistUrl;
+
+      const headers = [
+        'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0',
+        `Referer: ${resolved.embedUrl}`,
+        'Origin: https://animeembed.com',
+        'Accept: */*',
+        'Sec-Fetch-Dest: empty',
+        'Sec-Fetch-Mode: cors',
+        'Sec-Fetch-Site: same-origin'
+      ].join('\r\n') + '\r\n';
+
+      let ffmpegArgs = [];
+      if (format === 'mp3') {
+        ffmpegArgs = [
+          '-loglevel', 'error',
+          '-headers', headers,
+          '-extension_picky', '0',
+          '-i', subUrl,
+          '-vn',
+          '-c:a', 'libmp3lame',
+          '-q:a', '2',
+          '-f', 'mp3',
+          'pipe:1'
+        ];
+      } else {
+        // MP4 remuxing with bitstream filter to fix AAC ADTS
+        ffmpegArgs = [
+          '-loglevel', 'error',
+          '-headers', headers,
+          '-extension_picky', '0',
+          '-i', subUrl,
+          '-c:v', 'copy',
+          '-c:a', 'copy',
+          '-bsf:a', 'aac_adtstoasc',
+          '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+          '-f', 'mp4',
+          'pipe:1'
+        ];
+      }
+
+      const ffmpeg = spawn('ffmpeg', ffmpegArgs);
+      ffmpeg.on('error', (err) => {
+        console.error('Anime ffmpeg stream error:', err.message);
+        if (!res.headersSent) res.status(500).end();
+      });
+
+      req.on('close', () => {
+        try { ffmpeg.kill('SIGKILL'); } catch (_) {}
+      });
+
+      return ffmpeg.stdout.pipe(res);
+    }
+
+    // 2. YouTube streaming via @distube/ytdl-core + ffmpeg muxing
+    if (!videoId && fileUrl) {
+      const ytMatch = fileUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([\w-]{11})/i);
+      if (ytMatch) videoId = ytMatch[1];
+    }
+
     if (videoId || type === 'youtube') {
       const targetId = videoId || 'dQw4w9WgXcQ';
       if (format === 'mp3') {
@@ -913,7 +1197,7 @@ app.get('/api/download/file', async (req, res) => {
       }
     }
 
-    // 2. Direct HTTP / HTTPS file streaming (MP4 / WebM / sample video)
+    // 3. Direct HTTP / HTTPS file streaming (MP4 / WebM / sample video)
     if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
       const response = await axios({
         method: 'get',
@@ -935,7 +1219,6 @@ app.get('/api/download/file', async (req, res) => {
   } catch (err) {
     console.error('Download stream proxy error:', err.message);
     if (!res.headersSent) {
-      // NEVER res.redirect(req.query.url) - it plays the video in the browser!
       res.status(500).send('Failed to stream file download: ' + err.message);
     }
   }

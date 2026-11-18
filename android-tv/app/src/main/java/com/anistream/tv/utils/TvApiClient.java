@@ -57,6 +57,39 @@ public class TvApiClient {
         prefs.edit().putString(KEY_SERVER_URL, url).apply();
     }
 
+    public void testServerConnection(String targetUrl, ApiCallback<Boolean> callback) {
+        if (targetUrl == null || targetUrl.trim().isEmpty()) {
+            callback.onError(new IllegalArgumentException("URL cannot be empty"));
+            return;
+        }
+        String cleanUrl = targetUrl.trim();
+        if (cleanUrl.endsWith("/")) {
+            cleanUrl = cleanUrl.substring(0, cleanUrl.length() - 1);
+        }
+        String testEndpoint = cleanUrl + "/api/anime/trending?page=1";
+        OkHttpClient testClient = client.newBuilder()
+                .connectTimeout(5, TimeUnit.SECONDS)
+                .readTimeout(5, TimeUnit.SECONDS)
+                .build();
+
+        Request req = new Request.Builder().url(testEndpoint).build();
+        testClient.newCall(req).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                callback.onError(e);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) {
+                if (response.isSuccessful()) {
+                    callback.onSuccess(true);
+                } else {
+                    callback.onError(new IOException("Server responded with HTTP " + response.code()));
+                }
+            }
+        });
+    }
+
     public interface ApiCallback<T> {
         void onSuccess(T result);
         void onError(Exception e);

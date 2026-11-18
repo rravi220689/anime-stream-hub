@@ -17,16 +17,57 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:text="Enter backend server address (default: http://rravi.ddns.net:4008 or custom LAN IP)"
+        android:layout_marginTop="4dp"
+        android:text="Enter backend server address or pick a quick preset below:"
         android:textColor="@color/text_muted"
         android:textSize="12sp" />
+
+    <!-- Quick Presets -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="QUICK PRESETS"
+        android:textColor="@color/accent_cyan"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnPresetDefault"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_card"
+            android:text="Production (DDNS)"
+            android:textAllCaps="false"
+            android:textColor="@color/text_primary"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/btnPresetEmulator"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_card"
+            android:text="Emulator (10.0.2.2)"
+            android:textAllCaps="false"
+            android:textColor="@color/text_muted"
+            android:textSize="11sp" />
+    </LinearLayout>
 
     <EditText
         android:id="@+id/etServerUrl"
         android:layout_width="match_parent"
         android:layout_height="48dp"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="12dp"
         android:background="@drawable/bg_card"
         android:hint="@string/server_url_hint"
         android:inputType="textUri"
@@ -35,6 +76,38 @@
         android:textColorHint="@color/text_muted"
         android:textSize="14sp" />
 
+    <!-- Test Connection Button & Status Indicator -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnTestServer"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_card"
+            android:paddingHorizontal="12dp"
+            android:text="Test Connection"
+            android:textAllCaps="false"
+            android:textColor="@color/accent_cyan"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvConnectionStatus"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="@color/text_muted"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <!-- Dialog Actions -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

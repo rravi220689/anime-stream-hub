@@ -219,10 +219,45 @@ public class MainActivity extends AppCompatActivity {
     private void showServerSettingsDialog() {
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_server_ip, null);
         EditText etServerUrl = dialogView.findViewById(R.id.etServerUrl);
+        Button btnPresetDefault = dialogView.findViewById(R.id.btnPresetDefault);
+        Button btnPresetEmulator = dialogView.findViewById(R.id.btnPresetEmulator);
+        Button btnTestServer = dialogView.findViewById(R.id.btnTestServer);
+        TextView tvConnectionStatus = dialogView.findViewById(R.id.tvConnectionStatus);
         Button btnCancel = dialogView.findViewById(R.id.btnCancelServer);
         Button btnSave = dialogView.findViewById(R.id.btnSaveServer);
 
         etServerUrl.setText(apiClient.getServerUrl());
+
+        btnPresetDefault.setOnClickListener(v -> etServerUrl.setText("http://rravi.ddns.net:4008"));
+        btnPresetEmulator.setOnClickListener(v -> etServerUrl.setText("http://10.0.2.2:5050"));
+
+        btnTestServer.setOnClickListener(v -> {
+            String testUrl = etServerUrl.getText().toString().trim();
+            if (testUrl.isEmpty()) {
+                tvConnectionStatus.setText("Enter a URL first");
+                tvConnectionStatus.setTextColor(0xFFFF5555);
+                return;
+            }
+            tvConnectionStatus.setText("Testing connection...");
+            tvConnectionStatus.setTextColor(0xFF00F0FF);
+            apiClient.testServerConnection(testUrl, new ApiClient.ApiCallback<Boolean>() {
+                @Override
+                public void onSuccess(Boolean result) {
+                    runOnUiThread(() -> {
+                        tvConnectionStatus.setText("✓ Connected! Server online");
+                        tvConnectionStatus.setTextColor(0xFF00FF88);
+                    });
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    runOnUiThread(() -> {
+                        tvConnectionStatus.setText("✗ Failed: " + e.getMessage());
+                        tvConnectionStatus.setTextColor(0xFFFF5555);
+                    });
+                }
+            });
+        });
 
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setView(dialogView)

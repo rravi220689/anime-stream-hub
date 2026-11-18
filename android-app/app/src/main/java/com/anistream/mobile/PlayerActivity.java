@@ -17,6 +17,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -70,6 +71,7 @@ public class PlayerActivity extends AppCompatActivity {
     private TextView tvAspectRatioBadge;
 
     private ImageView btnPlayerBack;
+    private ImageView btnPlayerServerSettings;
     private ImageView btnPlayerPip;
     private ImageView btnToggleAspectRatio;
     private ImageView btnToggleFullscreen;
@@ -138,6 +140,11 @@ public class PlayerActivity extends AppCompatActivity {
                 finish();
             }
         });
+
+        btnPlayerServerSettings = findViewById(R.id.btnPlayerServerSettings);
+        if (btnPlayerServerSettings != null) {
+            btnPlayerServerSettings.setOnClickListener(v -> showServerSettingsDialog());
+        }
 
         btnPlayerPip = findViewById(R.id.btnPlayerPip);
         btnPlayerPip.setOnClickListener(v -> enterPip());
@@ -446,14 +453,18 @@ public class PlayerActivity extends AppCompatActivity {
                 ? "https://animeembed.com/embed/ani/" + item.id + "/" + currentEpisode
                 : (item.videoUrl != null ? item.videoUrl : "");
 
-        apiClient.resolveDownloads(streamUrl, item.title, item.duration, item.type, item.id, new ApiClient.ApiCallback<List<DownloadOption>>() {
+        String downloadTitle = "anime".equals(item.type)
+                ? (item.title + " Episode " + currentEpisode)
+                : item.title;
+
+        apiClient.resolveDownloads(streamUrl, downloadTitle, item.duration, item.type, item.id, new ApiClient.ApiCallback<List<DownloadOption>>() {
             @Override
             public void onSuccess(List<DownloadOption> result) {
                 runOnUiThread(() -> {
                     loading.setVisibility(View.GONE);
                     DownloadOptionsAdapter optAdapter = new DownloadOptionsAdapter(PlayerActivity.this, option -> {
                         String dlUrl = option.directUrl != null ? option.directUrl : option.externalUrl;
-                        DownloadHelper.startDownload(PlayerActivity.this, dlUrl, item.title, option.quality, option.format);
+                        DownloadHelper.startDownload(PlayerActivity.this, dlUrl, option.subtitleUrl, downloadTitle, option.quality, option.format);
                         dialog.dismiss();
                     });
                     optAdapter.setOptions(result);
@@ -467,6 +478,71 @@ public class PlayerActivity extends AppCompatActivity {
                     loading.setVisibility(View.GONE);
                     Toast.makeText(PlayerActivity.this, "Could not resolve formats: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
+            }
+        });
+
+        dialog.show();
+    }
+
+    private void showServerSettingsDialog() {
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_server_ip, null);
+        EditText etServerUrl = dialogView.findViewById(R.id.etServerUrl);
+        Button btnPresetDefault = dialogView.findViewById(R.id.btnPresetDefault);
+        Button btnPresetEmulator = dialogView.findViewById(R.id.btnPresetEmulator);
+        Button btnTestServer = dialogView.findViewById(R.id.btnTestServer);
+        TextView tvConnectionStatus = dialogView.findViewById(R.id.tvConnectionStatus);
+        Button btnCancel = dialogView.findViewById(R.id.btnCancelServer);
+        Button btnSave = dialogView.findViewById(R.id.btnSaveServer);
+
+        etServerUrl.setText(apiClient.getServerUrl());
+
+        btnPresetDefault.setOnClickListener(v -> etServerUrl.setText("http://rravi.ddns.net:4008"));
+        btnPresetEmulator.setOnClickListener(v -> etServerUrl.setText("http://10.0.2.2:5050"));
+
+        btnTestServer.setOnClickListener(v -> {
+            String testUrl = etServerUrl.getText().toString().trim();
+            if (testUrl.isEmpty()) {
+                tvConnectionStatus.setText("Enter a URL first");
+                tvConnectionStatus.setTextColor(0xFFFF5555);
+                return;
+            }
+            tvConnectionStatus.setText("Testing connection...");
+            tvConnectionStatus.setTextColor(0xFF00F0FF);
+            apiClient.testServerConnection(testUrl, new ApiClient.ApiCallback<Boolean>() {
+                @Override
+                public void onSuccess(Boolean result) {
+                    runOnUiThread(() -> {
+                        tvConnectionStatus.setText("✓ Connected! Server online");
+                        tvConnectionStatus.setTextColor(0xFF00FF88);
+                    });
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    runOnUiThread(() -> {
+                        tvConnectionStatus.setText("✗ Failed: " + e.getMessage());
+                        tvConnectionStatus.setTextColor(0xFFFF5555);
+                    });
+                }
+            });
+        });
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .create();
+
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        btnSave.setOnClickListener(v -> {
+            String newUrl = etServerUrl.getText().toString().trim();
+            if (!newUrl.isEmpty()) {
+                apiClient.setServerUrl(newUrl);
+                Toast.makeText(this, "Server updated to: " + newUrl, Toast.LENGTH_SHORT).show();
+                dialog.dismiss();
+                loadMediaStream();
             }
         });
 

@@ -72,10 +72,24 @@
                 android:id="@+id/btnTvAspectRatio"
                 android:layout_width="wrap_content"
                 android:layout_height="40dp"
+                android:layout_marginEnd="12dp"
                 android:background="@drawable/tv_button_selector"
                 android:focusable="true"
                 android:paddingHorizontal="16dp"
                 android:text="📺 Screen: Fit (16:9)"
+                android:textAllCaps="false"
+                android:textColor="@color/tv_text_primary"
+                android:textSize="14sp" />
+
+            <!-- Server Settings Button -->
+            <Button
+                android:id="@+id/btnTvServerSettings"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:background="@drawable/tv_button_selector"
+                android:focusable="true"
+                android:paddingHorizontal="16dp"
+                android:text="⚙️ Server"
                 android:textAllCaps="false"
                 android:textColor="@color/tv_text_primary"
                 android:textSize="14sp" />

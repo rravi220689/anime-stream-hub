@@ -86,6 +86,17 @@
                 tools:text="One Piece Episode 1" />
 
             <ImageView
+                android:id="@+id/btnPlayerServerSettings"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Server Settings"
+                android:padding="6dp"
+                android:src="@drawable/ic_settings"
+                app:tint="@color/text_primary" />
+
+            <ImageView
                 android:id="@+id/btnPlayerPip"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
