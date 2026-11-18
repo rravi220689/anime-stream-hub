@@ -63,11 +63,30 @@ JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleDebug
 
 ### 3. Install on Device or Emulator
 ```bash
+# Install Release APK
 adb install -r app/build/outputs/apk/release/app-release.apk
+
+# Or install Debug APK
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### 4. Connect to Backend Server
-By default, the app is configured to connect to `http://rravi.ddns.net:4008`. You can change this anytime:
+### 4. Launch App via ADB
+```bash
+adb shell am start -n com.anistream.mobile/.MainActivity
+```
+
+### 5. View Logs via Logcat
+```bash
+adb logcat -s AniStreamMobile:V AndroidRuntime:E
+```
+
+### 6. Uninstall App
+```bash
+adb uninstall com.anistream.mobile
+```
+
+### 7. Connect to Backend Server
+By default, the app is pre-configured to connect to `http://rravi.ddns.net:4008`. You can change this anytime:
 1. Tap the **Settings** (⚙️) icon in the top right.
 2. Enter your custom server address.
 3. Tap **Connect & Save**.

@@ -71,13 +71,50 @@ The APK will be generated at:
 android-tv/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### 2. Install on Android TV / Fire TV / Google TV
+### 3. Connect & Install on Android TV / Fire TV / Google TV
 ```bash
+# Connect to TV over Wi-Fi ADB
 adb connect <tv-ip-address>:5555
+
+# Verify connection
+adb devices
+
+# Install Signed Release APK
+adb install -r app/build/outputs/apk/release/app-release.apk
+
+# Or install Debug APK
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### 3. TV Remote Control Key Reference
+### 4. Launch TV App via ADB
+```bash
+adb shell am start -n com.anistream.tv/.TvMainActivity
+```
+
+### 5. View TV Logs via Logcat
+```bash
+adb logcat -s AniStreamTv:V AndroidRuntime:E
+```
+
+### 6. Uninstall TV App
+```bash
+adb uninstall com.anistream.tv
+```
+
+### 7. Simulate TV Remote D-Pad via ADB Keyevents
+| Remote Action | ADB Command |
+|:---|:---|
+| **D-pad UP** | `adb shell input keyevent 19` |
+| **D-pad DOWN** | `adb shell input keyevent 20` |
+| **D-pad LEFT** | `adb shell input keyevent 21` |
+| **D-pad RIGHT** | `adb shell input keyevent 22` |
+| **Select / OK / Center** | `adb shell input keyevent 23` |
+| **Back Button** | `adb shell input keyevent 4` |
+| **Play / Pause** | `adb shell input keyevent 85` |
+| **Rewind (-10s)** | `adb shell input keyevent 89` |
+| **Fast-Forward (+10s)** | `adb shell input keyevent 90` |
+
+### 8. Physical TV Remote Control Key Reference
 | TV Remote Key | Action |
 |:---|:---|
 | **D-pad Arrows (↑ ↓ ← →)** | Move focus between cards, rails, and buttons |

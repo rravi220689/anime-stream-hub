@@ -85,6 +85,240 @@ AniStream HUB is a modern web application engineered to aggregate, stream, and d
 
 ---
 
+## ⚡ Execution Commands for All Types & Platforms
+
+Quick-reference cheat sheet for building, testing, deploying, and running every platform and component in this repository.
+
+### 🌐 Type 1: Web Application & Local Backend Server (Node.js)
+
+```bash
+# Navigate to the project root
+cd anime-stream-hub
+
+# 1. Install all dependencies
+npm install
+
+# 2. Start the production Express server (Port 5050 or PORT env var)
+npm start
+
+# 3. Alternatively run directly with Node.js
+node server.js
+
+# 4. Open in your web browser
+# Local: http://localhost:5050
+# Live Remote Endpoint: http://rravi.ddns.net:4008
+```
+
+---
+
+### 🐳 Type 2: Docker Deployment & Container Orchestration
+
+#### Option A: Docker Compose (Recommended)
+```bash
+# Build and run containers in background mode
+docker compose up -d --build
+
+# View container runtime status
+docker compose ps
+
+# Follow live container streaming logs
+docker compose logs -f
+
+# Restart container daemon
+docker compose restart
+
+# Stop and remove containers and network
+docker compose down
+```
+
+#### Option B: Standalone Docker CLI
+```bash
+# 1. Build the production Alpine Docker image
+docker build -t anime-stream-hub:latest .
+
+# 2. Run the Docker container
+docker run -d \
+  --name anime-stream-hub \
+  --restart unless-stopped \
+  -p 5050:5050 \
+  anime-stream-hub:latest
+
+# 3. View container logs
+docker logs -f anime-stream-hub
+
+# 4. Stop and remove the container
+docker stop anime-stream-hub && docker rm anime-stream-hub
+```
+
+---
+
+### 📱 Type 3: Android Mobile App (`android-app/` • Phone & Tablet)
+
+```bash
+# Navigate to Mobile subproject directory
+cd anime-stream-hub/android-app
+
+# 1. Ensure JAVA_HOME points to JDK 17 or JDK 21
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+
+# 2. Build Signed Production Release APK (v1 + v2 signed with anistream-release.jks)
+./gradlew assembleRelease
+# Output: app/build/outputs/apk/release/app-release.apk (7.6 MB)
+
+# 3. Build Debug APK
+./gradlew assembleDebug
+# Output: app/build/outputs/apk/debug/app-debug.apk (9.4 MB)
+
+# 4. Clean and rebuild
+./gradlew clean assembleRelease
+
+# 5. Install on connected phone/tablet or emulator via ADB
+adb install -r app/build/outputs/apk/release/app-release.apk
+
+# 6. Launch Mobile app via ADB
+adb shell am start -n com.anistream.mobile/.MainActivity
+
+# 7. Monitor Mobile app live logcat output
+adb logcat -s AniStreamMobile:V AndroidRuntime:E
+
+# 8. Uninstall Mobile app from device
+adb uninstall com.anistream.mobile
+```
+
+---
+
+### 📺 Type 4: Android TV App (`android-tv/` • TV, Google TV & Fire TV)
+
+```bash
+# Navigate to TV subproject directory
+cd anime-stream-hub/android-tv
+
+# 1. Ensure JAVA_HOME points to JDK 17 or JDK 21
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+
+# 2. Build Signed Production Release APK for TV
+./gradlew assembleRelease
+# Output: app/build/outputs/apk/release/app-release.apk (8.4 MB)
+
+# 3. Build Debug APK for TV
+./gradlew assembleDebug
+# Output: app/build/outputs/apk/debug/app-debug.apk (11 MB)
+
+# 4. Clean and rebuild TV project
+./gradlew clean assembleRelease
+
+# 5. Connect to Android TV / Fire TV over Wi-Fi ADB
+adb connect <tv-ip-address>:5555
+# Verify connection
+adb devices
+
+# 6. Install on TV device via ADB
+adb install -r app/build/outputs/apk/release/app-release.apk
+
+# 7. Launch TV app via Leanback Launcher
+adb shell am start -n com.anistream.tv/.TvMainActivity
+
+# 8. Monitor TV app live logcat output
+adb logcat -s AniStreamTv:V AndroidRuntime:E
+
+# 9. Uninstall TV app from device
+adb uninstall com.anistream.tv
+```
+
+---
+
+### 🎮 Type 5: TV Remote D-Pad Simulation (ADB Keyevents)
+
+When testing Android TV without a physical remote control, simulate D-pad remote interactions via ADB:
+
+| Remote Button | ADB Command |
+|:---|:---|
+| **D-pad UP** | `adb shell input keyevent 19` |
+| **D-pad DOWN** | `adb shell input keyevent 20` |
+| **D-pad LEFT** | `adb shell input keyevent 21` |
+| **D-pad RIGHT** | `adb shell input keyevent 22` |
+| **Select / OK / Center** | `adb shell input keyevent 23` |
+| **Back Button** | `adb shell input keyevent 4` |
+| **Play / Pause** | `adb shell input keyevent 85` |
+| **Rewind (-10s)** | `adb shell input keyevent 89` |
+| **Fast Forward (+10s)** | `adb shell input keyevent 90` |
+| **Volume Up / Down** | `adb shell input keyevent 24` / `adb shell input keyevent 25` |
+
+---
+
+### 📦 Type 6: Pre-Built Signed Releases Direct Install
+
+Pre-compiled and signed production release APKs are checked into the repository under `releases/`:
+
+```bash
+# 1. Install pre-built Mobile Release APK
+adb install -r releases/AniStream-Mobile-v1.0.0-release.apk
+
+# 2. Install pre-built TV Release APK
+adb install -r releases/AniStream-TV-v1.0.0-release.apk
+```
+
+---
+
+### 🔐 Type 7: Keystore Signature Verification (`apksigner`)
+
+Verify APK signature integrity and certificates:
+
+```bash
+# Verify Mobile Release APK signature (v1 & v2 scheme)
+/home/avinash/Android/Sdk/build-tools/34.0.0/apksigner verify --verbose releases/AniStream-Mobile-v1.0.0-release.apk
+
+# Verify TV Release APK signature (v1 & v2 scheme)
+/home/avinash/Android/Sdk/build-tools/34.0.0/apksigner verify --verbose releases/AniStream-TV-v1.0.0-release.apk
+
+# Inspect Keystore certificate details
+/usr/lib/jvm/java-21-openjdk-amd64/bin/keytool -list -v \
+  -keystore keystore/anistream-release.jks \
+  -storepass anistream_release_pass
+```
+
+---
+
+### 📡 Type 8: Backend API & Remote Endpoint Verification (`curl`)
+
+Test all backend API routes against local or production server (`http://rravi.ddns.net:4008`):
+
+```bash
+# Set Target Host (Local or DDNS Server)
+export API_HOST="http://rravi.ddns.net:4008"   # or "http://localhost:5050"
+
+# 1. Healthcheck / Home Page
+curl -I "${API_HOST}/"
+
+# 2. Trending Anime (Page 1)
+curl -s "${API_HOST}/api/anime/trending?page=1" | jq .
+
+# 3. Latest Releases
+curl -s "${API_HOST}/api/anime/latest?page=1" | jq .
+
+# 4. Top Movies
+curl -s "${API_HOST}/api/anime/movies?page=1" | jq .
+
+# 5. Cartoon Library (All / Category Filter)
+curl -s "${API_HOST}/api/anime/cartoons?category=all&page=1" | jq .
+curl -s "${API_HOST}/api/anime/cartoons?category=tom-jerry" | jq .
+
+# 6. Anime Directory Search & Filters
+curl -s "${API_HOST}/api/anime/search?q=naruto&page=1" | jq .
+curl -s "${API_HOST}/api/anime/directory?status=RELEASING&sort=POPULARITY_DESC&page=1" | jq .
+
+# 7. Series Details by ID
+curl -s "${API_HOST}/api/anime/details/21" | jq .
+
+# 8. YouTube Hub Search
+curl -s "${API_HOST}/api/youtube/search?q=looney+tunes" | jq .
+
+# 9. Multi-Resolution Download Resolver
+curl -s "${API_HOST}/api/download/resolve?url=https://www.youtube.com/watch?v=dQw4w9WgXcQ" | jq .
+```
+
+---
+
 ## 🐳 Docker Deployment
 
 The application includes production-optimized containerization using multi-stage Alpine images with built-in health checks and non-root security.
