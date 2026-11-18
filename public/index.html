@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f19">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="AnimeStreamHub - Responsive anime, cartoon, series & movie streaming hub with YouTube integration, multi-server player, and instant downloads.">
+  <title>AnimeStreamHub | Mobile & Desktop Anime, Cartoons & Movies</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- HLS.js for direct M3U8/HLS streaming -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- App Stylesheet -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="bg-dark text-light antialiased">
+
+  <!-- Mobile Notch / Safe Area Top Spacing -->
+  <div class="safe-area-top"></div>
+
+  <!-- Background Ambient Glow -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+
+  <!-- Cinema Dimmer Overlay -->
+  <div id="cinemaOverlay" class="cinema-overlay hidden"></div>
+
+  <!-- Main Top Header -->
+  <header class="site-header">
+    <div class="header-inner container">
+      <!-- Logo & Brand -->
+      <a href="#" class="brand-logo" onclick="app.navigate('home'); return false;">
+        <div class="logo-icon">
+          <i data-lucide="play-circle"></i>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">Ani<span class="gradient-text">Stream</span></span>
+          <span class="brand-tag">HUB</span>
+        </div>
+      </a>
+
+      <!-- Desktop Navigation Links -->
+      <nav class="desktop-nav">
+        <button class="nav-btn active" data-tab="home" onclick="app.navigate('home')">
+          <i data-lucide="home"></i> Home
+        </button>
+        <button class="nav-btn" data-tab="directory" onclick="app.navigate('directory')">
+          <i data-lucide="list-ordered"></i> Anime List
+        </button>
+        <button class="nav-btn" data-tab="movies" onclick="app.navigate('movies')">
+          <i data-lucide="film"></i> Movies
+        </button>
+        <button class="nav-btn" data-tab="cartoons" onclick="app.navigate('cartoons')">
+          <i data-lucide="smile"></i> Cartoons
+        </button>
+        <button class="nav-btn" data-tab="youtube" onclick="app.navigate('youtube')">
+          <i data-lucide="youtube"></i> YouTube Hub
+        </button>
+        <button class="nav-btn" data-tab="watchlist" onclick="app.navigate('watchlist')">
+          <i data-lucide="bookmark"></i> Watchlist (<span id="watchlistCount">0</span>)
+        </button>
+      </nav>
+
+      <!-- Action Buttons (Search & Paste Stream) -->
+      <div class="header-actions">
+        <!-- Quick Paste Video URL Button -->
+        <button class="action-pill-btn" onclick="app.openPasteModal()" title="Stream any custom link or YouTube link">
+          <i data-lucide="link"></i>
+          <span class="btn-text">Paste Link</span>
+        </button>
+
+        <!-- Search Button (Toggle Search Bar) -->
+        <button class="icon-round-btn search-toggle-btn" onclick="app.toggleSearch()" aria-label="Search">
+          <i data-lucide="search"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Collapsible Search Bar (Auto-adjusts for mobile and desktop) -->
+    <div id="searchDrawer" class="search-drawer hidden">
+      <div class="container search-inner">
+        <div class="search-input-wrapper">
+          <i data-lucide="search" class="search-icon"></i>
+          <input 
+            type="text" 
+            id="globalSearchInput" 
+            placeholder="Search anime, cartoons, series, movies or YouTube videos..." 
+            autocomplete="off"
+            oninput="app.handleSearchInput(this.value)"
+          >
+          <button id="clearSearchBtn" class="clear-search hidden" onclick="app.clearSearch()">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <!-- Search Category Chips -->
+        <div class="search-chips">
+          <button class="chip active" onclick="app.setSearchScope('all', this)">All</button>
+          <button class="chip" onclick="app.setSearchScope('anime', this)">Anime</button>
+          <button class="chip" onclick="app.setSearchScope('cartoons', this)">Cartoons</button>
+          <button class="chip" onclick="app.setSearchScope('movies', this)">Movies</button>
+          <button class="chip" onclick="app.setSearchScope('youtube', this)">YouTube</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Sticky Mini-Player for Mobile (Docked on scroll) -->
+  <div id="miniPlayer" class="mini-player hidden">
+    <div class="mini-player-content">
+      <div class="mini-info">
+        <i data-lucide="play" class="pulse-icon"></i>
+        <div class="mini-text">
+          <span id="miniTitle" class="mini-title">Now Playing</span>
+          <span id="miniSub" class="mini-sub">Episode 1</span>
+        </div>
+      </div>
+      <div class="mini-controls">
+        <button class="mini-btn" onclick="app.scrollToPlayer()" title="Expand Player">
+          <i data-lucide="maximize-2"></i>
+        </button>
+        <button class="mini-btn close" onclick="app.closePlayer()" title="Close Player">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App Body -->
+  <main class="main-content container">
+
+    <!-- Active Video Player Section (When playing video) -->
+    <section id="playerSection" class="player-section hidden">
+      <div class="player-wrapper">
+        <!-- Player Container (Responsive 16:9 Aspect Ratio) -->
+        <div class="video-container" id="videoContainer">
+          <!-- Iframe Player for Embeds / YouTube -->
+          <iframe 
+            id="embedIframe" 
+            class="video-frame" 
+            src="" 
+            allowfullscreen 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerpolicy="no-referrer-when-downgrade"
+          ></iframe>
+
+          <!-- Native HTML5 / Hls.js Video Player for Direct MP4/M3U8 -->
+          <video id="nativeVideo" class="video-element hidden" controls playsinline></video>
+
+          <!-- Player Loader Overlay -->
+          <div id="playerLoading" class="player-loading hidden">
+            <div class="spinner"></div>
+            <span>Loading stream...</span>
+          </div>
+        </div>
+
+        <!-- Player Controls Bar -->
+        <div class="player-controls-bar">
+          <div class="player-meta-info">
+            <h2 id="playerTitle" class="current-playing-title">Select an item to stream</h2>
+            <p id="playerSubtitle" class="current-playing-sub">Ready to play</p>
+          </div>
+
+          <div class="player-action-buttons">
+            <!-- Cinema Mode Button -->
+            <button class="player-btn" onclick="app.toggleCinemaMode()" title="Cinema Mode">
+              <i data-lucide="moon"></i>
+              <span class="btn-label">Cinema</span>
+            </button>
+
+            <!-- Open Full Source External Tab (Fallback for strict browser security/adblock) -->
+            <button class="player-btn" onclick="app.openExternalStream()" title="Open Stream directly in New Tab">
+              <i data-lucide="external-link"></i>
+              <span class="btn-label">Open Full</span>
+            </button>
+
+            <!-- Download Button -->
+            <button class="player-btn download-highlight" onclick="app.openDownloadModal()" title="Download this video">
+              <i data-lucide="download"></i>
+              <span class="btn-label">Download</span>
+            </button>
+
+            <!-- Watchlist Button -->
+            <button id="playerBookmarkBtn" class="player-btn" onclick="app.toggleWatchlistFromPlayer()" title="Add to Watchlist">
+              <i data-lucide="bookmark-plus"></i>
+              <span class="btn-label">Save</span>
+            </button>
+
+            <!-- Close Player Button -->
+            <button class="player-btn close-btn" onclick="app.closePlayer()" title="Close Player">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Multi-Server Selector -->
+        <div class="server-selector-card">
+          <div class="server-label">
+            <i data-lucide="server"></i>
+            <span>Streaming Servers:</span>
+            <small class="server-hint">(Switch server if video is loading slow or blocked)</small>
+          </div>
+          <div id="serverList" class="server-buttons-list">
+            <!-- Dynamically populated servers -->
+          </div>
+        </div>
+
+        <!-- Episode Selector Bar & Grid (For Series) -->
+        <div id="episodeSection" class="episode-section hidden">
+          <div class="episode-header">
+            <div class="ep-title-group">
+              <i data-lucide="list-video"></i>
+              <h3>Episodes List (<span id="totalEpCount">0</span>)</h3>
+            </div>
+            <!-- Episode Navigation & Search -->
+            <div class="ep-nav-controls">
+              <button class="ep-nav-btn" id="prevEpBtn" onclick="app.playPreviousEpisode()" disabled>
+                <i data-lucide="chevron-left"></i> Prev Ep
+              </button>
+              <button class="ep-nav-btn" id="nextEpBtn" onclick="app.playNextEpisode()">
+                Next Ep <i data-lucide="chevron-right"></i>
+              </button>
+            </div>
+          </div>
+          <!-- Episode Number Buttons / Grid -->
+          <div id="episodeGrid" class="episode-grid">
+            <!-- Dynamically populated episode pills -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Hero Featured Banner (Dynamic Auto-Adjusting Slider) -->
+    <section id="heroSection" class="hero-section">
+      <div class="hero-slider" id="heroSlider">
+        <!-- Populated dynamically with top trending anime & cartoon -->
+        <div class="hero-slide-skeleton skeleton"></div>
+      </div>
+    </section>
+
+    <!-- Quick Category Bar (Auto-adjusting horizontal scroll with touch support) -->
+    <section class="category-bar">
+      <div class="category-scroll">
+        <button class="cat-pill active" data-category="latest" onclick="app.switchCategory('latest', this)">
+          <i data-lucide="zap"></i> Latest Releases
+        </button>
+        <button class="cat-pill" data-category="trending" onclick="app.switchCategory('trending', this)">
+          <i data-lucide="flame"></i> Trending Anime
+        </button>
+        <button class="cat-pill" data-category="popular" onclick="app.switchCategory('popular', this)">
+          <i data-lucide="award"></i> Popular Series
+        </button>
+        <button class="cat-pill" data-category="movies" onclick="app.switchCategory('movies', this)">
+          <i data-lucide="clapperboard"></i> Animated Movies
+        </button>
+        <button class="cat-pill" data-category="cartoons" onclick="app.switchCategory('cartoons', this)">
+          <i data-lucide="smile"></i> Kids & Cartoons
+        </button>
+        <button class="cat-pill" data-category="youtube-tom" onclick="app.switchCategory('youtube-tom', this)">
+          <i data-lucide="youtube"></i> Tom & Jerry
+        </button>
+        <button class="cat-pill" data-category="youtube-pokemon" onclick="app.switchCategory('youtube-pokemon', this)">
+          <i data-lucide="play"></i> Pokémon
+        </button>
+        <button class="cat-pill" data-category="sample-streams" onclick="app.switchCategory('sample-streams', this)">
+          <i data-lucide="film"></i> 4K Open Animations
+        </button>
+      </div>
+    </section>
+
+    <!-- Media Section Header -->
+    <div class="section-heading-row">
+      <div class="heading-meta">
+        <h2 id="sectionTitle" class="section-title">Trending Animations & Cartoons</h2>
+        <span id="sectionCount" class="section-badge">Loading...</span>
+      </div>
+      <!-- View / Sort Options -->
+      <div class="filter-controls">
+        <select id="genreFilter" class="custom-select" onchange="app.handleGenreFilter(this.value)">
+          <option value="">All Genres</option>
+          <option value="Action">Action</option>
+          <option value="Adventure">Adventure</option>
+          <option value="Comedy">Comedy</option>
+          <option value="Fantasy">Fantasy</option>
+          <option value="Sci-Fi">Sci-Fi</option>
+          <option value="Slice of Life">Slice of Life</option>
+          <option value="Drama">Drama</option>
+          <option value="Mystery">Mystery</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Auto-Adjusting Media Grid (Responsive 2 to 6 cols based on screen width) -->
+    <section id="mediaGrid" class="media-grid">
+      <!-- Media Cards loaded dynamically -->
+      <div class="card-skeleton skeleton"></div>
+      <div class="card-skeleton skeleton"></div>
+      <div class="card-skeleton skeleton"></div>
+      <div class="card-skeleton skeleton"></div>
+      <div class="card-skeleton skeleton"></div>
+      <div class="card-skeleton skeleton"></div>
+    </section>
+
+    <!-- Dedicated Anime Directory / List Section -->
+    <section id="directorySection" class="directory-section hidden">
+      <div class="directory-header-card">
+        <div class="dir-title-row">
+          <div>
+            <h2 class="section-title"><i data-lucide="list-ordered"></i> Complete Anime List & Directory</h2>
+            <p class="dir-subtitle">Search, filter, and browse through thousands of anime series, movies, and animations</p>
+          </div>
+          <!-- View Mode Toggle -->
+          <div class="view-mode-toggle">
+            <button class="view-btn active" id="viewModeGrid" onclick="app.setDirectoryView('grid')" title="Card Grid View">
+              <i data-lucide="layout-grid"></i>
+            </button>
+            <button class="view-btn" id="viewModeList" onclick="app.setDirectoryView('list')" title="Detailed List Table View">
+              <i data-lucide="list"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Directory Filter Bar -->
+        <div class="directory-filter-bar">
+          <div class="dir-search-wrap">
+            <i data-lucide="search"></i>
+            <input type="text" id="dirSearchInput" placeholder="Search title in directory..." oninput="app.handleDirSearch(this.value)">
+          </div>
+
+          <div class="dir-dropdowns">
+            <select id="dirSort" class="custom-select" onchange="app.handleDirFilter()">
+              <option value="popularity">Most Popular</option>
+              <option value="rating">Highest Rated</option>
+              <option value="latest">Latest Aired</option>
+              <option value="az">Title (A - Z)</option>
+              <option value="za">Title (Z - A)</option>
+              <option value="episodes">Most Episodes</option>
+            </select>
+
+            <select id="dirStatus" class="custom-select" onchange="app.handleDirFilter()">
+              <option value="">All Status</option>
+              <option value="RELEASING">Ongoing (Releasing)</option>
+              <option value="FINISHED">Completed (Finished)</option>
+            </select>
+
+            <select id="dirFormat" class="custom-select" onchange="app.handleDirFilter()">
+              <option value="">All Formats</option>
+              <option value="TV">TV Series</option>
+              <option value="MOVIE">Movie</option>
+              <option value="OVA">OVA / Special</option>
+            </select>
+
+            <select id="dirGenre" class="custom-select" onchange="app.handleDirFilter()">
+              <option value="">All Genres</option>
+              <option value="Action">Action</option>
+              <option value="Adventure">Adventure</option>
+              <option value="Comedy">Comedy</option>
+              <option value="Drama">Drama</option>
+              <option value="Fantasy">Fantasy</option>
+              <option value="Romance">Romance</option>
+              <option value="Sci-Fi">Sci-Fi</option>
+              <option value="Slice of Life">Slice of Life</option>
+              <option value="Supernatural">Supernatural</option>
+              <option value="Mystery">Mystery</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Directory Content (Grid or Table List) -->
+      <div id="directoryContent" class="directory-content">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- Universal Responsive Pagination Bar -->
+    <div id="paginationBar" class="pagination-bar">
+      <div class="pagination-info">
+        <span>Page <strong id="currentPageNum">1</strong> of <strong id="totalPagesNum">1</strong></span>
+      </div>
+      <div class="pagination-controls">
+        <button class="page-nav-btn" id="prevPageBtn" onclick="app.changePage(app.currentPage - 1)">
+          <i data-lucide="chevron-left"></i> <span>Prev</span>
+        </button>
+        <div id="pageNumberButtons" class="page-numbers-group">
+          <!-- Dynamic page buttons -->
+        </div>
+        <button class="page-nav-btn" id="nextPageBtn" onclick="app.changePage(app.currentPage + 1)">
+          <span>Next</span> <i data-lucide="chevron-right"></i>
+        </button>
+      </div>
+      <div class="pagination-jump">
+        <span>Go to:</span>
+        <input type="number" id="jumpPageInput" min="1" placeholder="Page" onkeydown="if(event.key==='Enter') app.jumpToPage(this.value)">
+        <button class="jump-btn" onclick="app.jumpToPage(document.getElementById('jumpPageInput').value)">Go</button>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="empty-state hidden">
+      <i data-lucide="inbox"></i>
+      <h3>No animations or videos found</h3>
+      <p>Try searching for another keyword or check another category.</p>
+      <button class="btn-primary" onclick="app.switchCategory('all')">Browse Featured</button>
+    </div>
+
+    <!-- YouTube Hub Section (Dedicated Video Search & Full Streams) -->
+    <section id="youtubeHubSection" class="youtube-hub-section hidden">
+      <div class="yt-hub-banner">
+        <div class="yt-banner-text">
+          <div class="yt-badge"><i data-lucide="youtube"></i> YouTube Animated Hub</div>
+          <h2>Watch Full Cartoons, Anime Trailers & Free Streams</h2>
+          <p>Stream high-definition animations, classic cartoon episodes, and official anime directly on site with zero interruptions.</p>
+        </div>
+        <div class="yt-search-box">
+          <input type="text" id="ytSearchInput" placeholder="Search YouTube cartoons or anime..." onkeydown="if(event.key==='Enter') app.searchYouTubeDirect()">
+          <button class="btn-accent" onclick="app.searchYouTubeDirect()">
+            <i data-lucide="search"></i> Search
+          </button>
+        </div>
+      </div>
+
+      <!-- YouTube Curated Tabs -->
+      <div class="yt-tabs">
+        <button class="yt-tab-btn active" onclick="app.loadCuratedYouTube('tom-jerry', this)">Tom & Jerry</button>
+        <button class="yt-tab-btn" onclick="app.loadCuratedYouTube('looney-tunes', this)">Looney Tunes</button>
+        <button class="yt-tab-btn" onclick="app.loadCuratedYouTube('pokemon', this)">Pokémon</button>
+        <button class="yt-tab-btn" onclick="app.loadCuratedYouTube('ben-10', this)">Ben 10</button>
+        <button class="yt-tab-btn" onclick="app.loadCuratedYouTube('anime-official', this)">Official Anime (Muse)</button>
+        <button class="yt-tab-btn" onclick="app.loadCuratedYouTube('popeye', this)">Popeye</button>
+      </div>
+
+      <div id="youtubeGrid" class="media-grid">
+        <!-- Populated via YouTube API -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= MODALS ================= -->
+
+  <!-- 1. Paste & Play Custom Video Link Modal -->
+  <div id="pasteModal" class="modal-backdrop hidden" onclick="if(event.target === this) app.closePasteModal()">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <i data-lucide="link-2"></i>
+          <h3>Paste & Play Any Video URL</h3>
+        </div>
+        <button class="icon-round-btn" onclick="app.closePasteModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Paste any video URL from <strong>YouTube</strong>, <strong>AnimePahe</strong>, <strong>Gogoanime</strong>, or a direct <strong>MP4 / M3U8 stream</strong> to play immediately inside our responsive player and unlock download links!
+        </p>
+
+        <div class="input-group">
+          <label for="customUrlInput">Video or Embed URL:</label>
+          <div class="input-with-icon">
+            <i data-lucide="globe"></i>
+            <input 
+              type="url" 
+              id="customUrlInput" 
+              placeholder="e.g. https://www.youtube.com/watch?v=... or https://site.com/video.mp4"
+            >
+          </div>
+        </div>
+
+        <div class="quick-examples">
+          <span>Quick Test Streams:</span>
+          <button class="tag-example" onclick="app.fillUrl('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4', 'Sintel (4K Fantasy MP4)')">Sintel MP4</button>
+          <button class="tag-example" onclick="app.fillUrl('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8', 'Adaptive HLS Stream')">Adaptive HLS</button>
+          <button class="tag-example" onclick="app.fillUrl('https://www.youtube.com/watch?v=_GE6zf_hH48', 'Tom & Jerry Compilation')">YouTube Tom & Jerry</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="app.closePasteModal()">Cancel</button>
+        <button class="btn-primary" onclick="app.playCustomUrl()">
+          <i data-lucide="play"></i> Play & Stream Now
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Video Download Manager Modal -->
+  <div id="downloadModal" class="modal-backdrop hidden" onclick="if(event.target === this) app.closeDownloadModal()">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <i data-lucide="download-cloud"></i>
+          <h3>Download Video Manager</h3>
+        </div>
+        <button class="icon-round-btn" onclick="app.closeDownloadModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="download-item-card">
+          <div class="dl-thumb" id="dlThumb"></div>
+          <div class="dl-meta">
+            <h4 id="dlTitle">Video Title</h4>
+            <span id="dlSub" class="dl-sub">Quality: 1080p Full HD</span>
+          </div>
+        </div>
+
+        <div class="download-options-list" id="downloadOptionsList">
+          <!-- Populated dynamically with direct download options -->
+        </div>
+
+        <div class="download-tip-box">
+          <i data-lucide="info"></i>
+          <div>
+            <strong>Download Tip:</strong> Direct MP4 files download immediately to your device. For YouTube & embedded series streams, you can use high-speed direct extraction or external HD converters.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="app.closeDownloadModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast hidden">
+    <i data-lucide="check-circle" id="toastIcon"></i>
+    <span id="toastMsg">Notification message</span>
+  </div>
+
+  <!-- Mobile Bottom Navigation Bar (Auto-adjusted for mobile view) -->
+  <nav class="mobile-bottom-nav">
+    <button class="mobile-nav-item active" data-tab="home" onclick="app.navigate('home')">
+      <i data-lucide="home"></i>
+      <span>Home</span>
+    </button>
+    <button class="mobile-nav-item" data-tab="directory" onclick="app.navigate('directory')">
+      <i data-lucide="list-ordered"></i>
+      <span>Anime List</span>
+    </button>
+    <button class="mobile-nav-item" data-tab="cartoons" onclick="app.navigate('cartoons')">
+      <i data-lucide="smile"></i>
+      <span>Cartoons</span>
+    </button>
+    <button class="mobile-nav-item" data-tab="youtube" onclick="app.navigate('youtube')">
+      <i data-lucide="youtube"></i>
+      <span>YouTube</span>
+    </button>
+    <button class="mobile-nav-item" data-tab="watchlist" onclick="app.navigate('watchlist')">
+      <i data-lucide="bookmark"></i>
+      <span>Saved</span>
+    </button>
+  </nav>
+
+  <!-- Mobile Safe Area Bottom Spacer -->
+  <div class="safe-area-bottom"></div>
+
+  <!-- App Scripts -->
+  <script src="/js/app.js"></script>
+</body>
+</html>
