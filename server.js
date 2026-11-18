@@ -3,11 +3,14 @@ const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
 const dotenv = require('dotenv');
+const { spawn } = require('child_process');
+const { Ytdl } = require('@distube/ytdl-core');
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5050;
+const ytdl = new Ytdl();
 
 app.use(cors());
 app.use(express.json());
@@ -645,8 +648,33 @@ app.get('/api/download/resolve', async (req, res) => {
 
     // Check if YouTube
     const ytMatch = videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([\w-]{11})/i);
-    const videoId = ytMatch ? ytMatch[1] : (type === 'youtube' ? req.query.id : null);
+    let videoId = ytMatch ? ytMatch[1] : (type === 'youtube' ? req.query.id : null);
     const isDirectVideo = videoUrl.includes('.mp4') || videoUrl.includes('.webm');
+
+    // If type is anime or videoId not yet resolved and not a direct video file, resolve via YouTube search
+    if (!videoId && !isDirectVideo) {
+      try {
+        const cleanQuery = title.replace(/\s+/g, ' ').trim();
+        const searchResults = await searchYouTube(cleanQuery, 5);
+        if (searchResults && searchResults.length > 0) {
+          videoId = searchResults[0].id;
+        }
+      } catch (e) {
+        console.warn('Resolver youtube search fallback:', e.message);
+      }
+    }
+
+    // ALWAYS provide a direct attachment download URL for every resolution
+    const buildDirectUrl = (quality, format) => {
+      const p = new URLSearchParams();
+      p.set('title', title);
+      p.set('quality', quality);
+      p.set('format', format);
+      p.set('type', type);
+      if (videoId) p.set('id', videoId);
+      if (videoUrl) p.set('url', videoUrl);
+      return `/api/download/file?${p.toString()}`;
+    };
 
     const resolutions = [
       {
@@ -659,7 +687,7 @@ app.get('/api/download/resolve', async (req, res) => {
         resolution: '1920x1080',
         bitrate: '~3.2 Mbps',
         recommended: true,
-        directUrl: isDirectVideo ? `/api/download/file?url=${encodeURIComponent(videoUrl)}&title=${safeTitle}&quality=1080p&format=mp4` : null,
+        directUrl: buildDirectUrl('1080p', 'mp4'),
         externalUrl: videoId ? `https://cobalt.tools/#https://www.youtube.com/watch?v=${videoId}` : (videoUrl || null)
       },
       {
@@ -672,7 +700,7 @@ app.get('/api/download/resolve', async (req, res) => {
         resolution: '1280x720',
         bitrate: '~1.8 Mbps',
         recommended: false,
-        directUrl: isDirectVideo ? `/api/download/file?url=${encodeURIComponent(videoUrl)}&title=${safeTitle}&quality=720p&format=mp4` : null,
+        directUrl: buildDirectUrl('720p', 'mp4'),
         externalUrl: videoId ? `https://cobalt.tools/#https://www.youtube.com/watch?v=${videoId}` : (videoUrl || null)
       },
       {
@@ -685,7 +713,7 @@ app.get('/api/download/resolve', async (req, res) => {
         resolution: '854x480',
         bitrate: '~950 kbps',
         recommended: false,
-        directUrl: isDirectVideo ? `/api/download/file?url=${encodeURIComponent(videoUrl)}&title=${safeTitle}&quality=480p&format=mp4` : null,
+        directUrl: buildDirectUrl('480p', 'mp4'),
         externalUrl: videoId ? `https://en.savefrom.net/1-youtube-video-downloader-4vA/?url=https://youtube.com/watch?v=${videoId}` : (videoUrl || null)
       },
       {
@@ -698,7 +726,7 @@ app.get('/api/download/resolve', async (req, res) => {
         resolution: '640x360',
         bitrate: '~500 kbps',
         recommended: false,
-        directUrl: isDirectVideo ? `/api/download/file?url=${encodeURIComponent(videoUrl)}&title=${safeTitle}&quality=360p&format=mp4` : null,
+        directUrl: buildDirectUrl('360p', 'mp4'),
         externalUrl: videoId ? `https://www.y2mate.com/youtube/${videoId}` : (videoUrl || null)
       },
       {
@@ -711,7 +739,7 @@ app.get('/api/download/resolve', async (req, res) => {
         resolution: 'Audio Only',
         bitrate: '320 kbps MP3',
         recommended: false,
-        directUrl: isDirectVideo ? `/api/download/file?url=${encodeURIComponent(videoUrl)}&title=${safeTitle}&quality=Audio&format=mp3` : null,
+        directUrl: buildDirectUrl('320kbps', 'mp3'),
         externalUrl: videoId ? `https://www.y2mate.com/youtube-mp3/${videoId}` : (videoUrl || null)
       },
       {
@@ -724,7 +752,7 @@ app.get('/api/download/resolve', async (req, res) => {
         resolution: '1280x720',
         bitrate: '~1.5 Mbps VP9',
         recommended: false,
-        directUrl: isDirectVideo ? `/api/download/file?url=${encodeURIComponent(videoUrl)}&title=${safeTitle}&quality=720p&format=webm` : null,
+        directUrl: buildDirectUrl('720p', 'webm'),
         externalUrl: videoId ? `https://cobalt.tools/#https://www.youtube.com/watch?v=${videoId}` : (videoUrl || null)
       }
     ];
@@ -737,10 +765,11 @@ app.get('/api/download/resolve', async (req, res) => {
         { name: 'Y2Mate HD Converter', url: `https://www.y2mate.com/youtube/${videoId}`, note: 'Fast MP4 & MP3' },
         { name: 'SaveFrom Video Hub', url: `https://en.savefrom.net/1-youtube-video-downloader-4vA/?url=https://youtube.com/watch?v=${videoId}`, note: 'Direct Mobile Downloads' }
       );
-    } else if (type === 'anime') {
+    }
+    if (type === 'anime') {
       mirrors.push(
-        { name: 'AnimePahe Download Portal', url: `https://animepahe.ru`, note: '720p & 1080p Mini-MKV/MP4' },
-        { name: 'Gogoanime Direct Server', url: `https://anitaku.to/search.html?keyword=${safeTitle}`, note: 'Direct Episode Mirrors' }
+        { name: 'AnimePahe Download Portal', url: `https://anitaku.to/search.html?keyword=${safeTitle}`, note: '720p & 1080p Direct Mirrors' },
+        { name: 'Gogoanime Direct Server', url: `https://anitaku.to/search.html?keyword=${safeTitle}`, note: 'Episode Download Mirror' }
       );
     }
 
@@ -762,17 +791,130 @@ app.get('/api/download/resolve', async (req, res) => {
 // 9b. Direct Stream / File Downloader Proxy Endpoint with Content-Disposition
 app.get('/api/download/file', async (req, res) => {
   try {
-    const fileUrl = req.query.url;
-    if (!fileUrl) return res.status(400).send('File URL is required');
-
     const title = req.query.title || 'video';
     const quality = req.query.quality || '1080p';
-    const format = req.query.format || 'mp4';
-    const cleanName = title.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').slice(0, 80);
+    const format = (req.query.format || 'mp4').toLowerCase();
+    const type = req.query.type || 'video';
+    const fileUrl = req.query.url || '';
+    let videoId = req.query.videoId || req.query.id || '';
+
+    // If no videoId provided but URL is YouTube
+    if (!videoId && fileUrl) {
+      const ytMatch = fileUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([\w-]{11})/i);
+      if (ytMatch) videoId = ytMatch[1];
+    }
+
+    // If still no videoId, but type is anime and not a direct file URL, resolve via YouTube search
+    if (!videoId && (!fileUrl || (!fileUrl.includes('.mp4') && !fileUrl.includes('.webm')))) {
+      try {
+        const cleanQuery = title.replace(/\s+/g, ' ').trim();
+        const searchResults = await searchYouTube(cleanQuery, 3);
+        if (searchResults && searchResults.length > 0) {
+          videoId = searchResults[0].id;
+        }
+      } catch (e) {}
+    }
+
+    const cleanName = title.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').slice(0, 80) || 'video';
     const filename = `${cleanName}_${quality}.${format}`;
 
-    // Stream directly if valid HTTP(S) media source
-    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+    // Common headers enforcing genuine download to Downloads folder
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+
+    if (req.method === 'HEAD') {
+      return res.end();
+    }
+
+    // 1. YouTube streaming via @distube/ytdl-core + ffmpeg muxing
+    if (videoId || type === 'youtube') {
+      const targetId = videoId || 'dQw4w9WgXcQ';
+      if (format === 'mp3') {
+        const audioStream = ytdl.download(targetId, {
+          filter: f => !f.hasVideo && f.hasAudio
+        });
+        audioStream.on('error', (err) => {
+          console.error('YouTube audio download stream error:', err.message);
+          if (!res.headersSent) res.status(500).end();
+        });
+        req.on('close', () => {
+          try { audioStream.destroy(); } catch (_) {}
+        });
+        return audioStream.pipe(res);
+      }
+
+      // MP4 / WebM with Muxed Audio + Video via ffmpeg
+      const info = await ytdl.getInfo(targetId);
+      const videoFormats = info.formats.filter(f => f.hasVideo && !f.hasAudio);
+      const audioFormats = info.formats.filter(f => !f.hasVideo && f.hasAudio);
+      videoFormats.sort((a, b) => (b.height || 0) - (a.height || 0));
+      audioFormats.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0));
+
+      const reqHeight = parseInt(quality) || 1080;
+      const targetV = videoFormats.find(f => f.height === reqHeight) ||
+                     videoFormats.find(f => f.height <= reqHeight) ||
+                     videoFormats[0] ||
+                     info.formats.find(f => f.hasVideo);
+
+      const targetA = audioFormats[0] || info.formats.find(f => f.hasAudio);
+
+      if (!targetV) {
+        throw new Error('No video stream available for this video');
+      }
+
+      const videoStream = ytdl.download(targetId, { filter: f => f.itag === targetV.itag });
+      const audioStream = targetA ? ytdl.download(targetId, { filter: f => f.itag === targetA.itag }) : null;
+
+      videoStream.on('error', (err) => console.warn('ytdl videoStream err:', err.message));
+      if (audioStream) audioStream.on('error', (err) => console.warn('ytdl audioStream err:', err.message));
+
+      if (audioStream) {
+        const ffmpeg = spawn('ffmpeg', [
+          '-loglevel', 'error',
+          '-i', 'pipe:3',
+          '-i', 'pipe:4',
+          '-map', '0:v:0',
+          '-map', '1:a:0',
+          '-c:v', 'copy',
+          '-c:a', 'aac',
+          '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+          '-f', 'mp4',
+          'pipe:1'
+        ], {
+          stdio: ['pipe', 'pipe', 'pipe', 'pipe', 'pipe']
+        });
+
+        ffmpeg.stdio[3].on('error', () => {});
+        ffmpeg.stdio[4].on('error', () => {});
+        ffmpeg.stdin.on('error', () => {});
+        ffmpeg.stdout.on('error', () => {});
+        ffmpeg.on('error', (err) => {
+          console.error('ffmpeg spawn error:', err.message);
+          if (!res.headersSent) videoStream.pipe(res);
+        });
+
+        req.on('close', () => {
+          try {
+            videoStream.destroy();
+            audioStream.destroy();
+            ffmpeg.kill('SIGKILL');
+          } catch (_) {}
+        });
+
+        videoStream.pipe(ffmpeg.stdio[3]);
+        audioStream.pipe(ffmpeg.stdio[4]);
+        return ffmpeg.stdout.pipe(res);
+      } else {
+        req.on('close', () => {
+          try { videoStream.destroy(); } catch (_) {}
+        });
+        return videoStream.pipe(res);
+      }
+    }
+
+    // 2. Direct HTTP / HTTPS file streaming (MP4 / WebM / sample video)
+    if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
       const response = await axios({
         method: 'get',
         url: fileUrl,
@@ -783,22 +925,18 @@ app.get('/api/download/file', async (req, res) => {
         }
       });
 
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       if (response.headers['content-length']) {
         res.setHeader('Content-Length', response.headers['content-length']);
       }
-      res.setHeader('Content-Type', format === 'mp3' ? 'audio/mpeg' : (format === 'webm' ? 'video/webm' : 'video/mp4'));
       return response.data.pipe(res);
     }
 
-    res.status(400).send('Invalid file URL scheme');
+    res.status(400).send('No valid stream source to download');
   } catch (err) {
     console.error('Download stream proxy error:', err.message);
     if (!res.headersSent) {
-      if (req.query.url) {
-        return res.redirect(req.query.url);
-      }
-      res.status(500).send('Failed to stream file download');
+      // NEVER res.redirect(req.query.url) - it plays the video in the browser!
+      res.status(500).send('Failed to stream file download: ' + err.message);
     }
   }
 });

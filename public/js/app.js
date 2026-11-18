@@ -932,7 +932,8 @@ class AnimeStreamApp {
         title: title + (isAnime ? ` Ep ${this.currentEpisode}` : ''),
         duration: cleanDuration,
         type: item.type,
-        id: item.id || ''
+        id: item.id || '',
+        episode: isAnime ? this.currentEpisode : 1
       });
 
       const res = await fetch(`/api/download/resolve?${params.toString()}`);
@@ -984,9 +985,9 @@ class AnimeStreamApp {
     }
 
     optionsList.innerHTML = filtered.map(f => {
-      const isDirect = !!f.directUrl;
       const targetUrl = f.directUrl || f.externalUrl || '#';
       const safeFilename = this.cleanFilename(this.currentItem.title) + `_${f.quality}.${f.format}`;
+      const isExternalOnly = !f.directUrl && !!f.externalUrl;
 
       return `
         <div class="dl-resolution-row">
@@ -1002,7 +1003,7 @@ class AnimeStreamApp {
             </div>
           </div>
           <div class="dl-row-actions">
-            <button class="dl-btn primary" onclick="app.executeDownload('${encodeURIComponent(targetUrl)}', '${safeFilename}', '${f.quality}', '${f.format}', ${isDirect})">
+            <button class="dl-btn primary" onclick="app.executeDownload(event, '${encodeURIComponent(targetUrl)}', '${safeFilename}', '${f.quality}', '${f.format}', ${isExternalOnly})">
               <i data-lucide="download"></i>
               <span>Download</span>
             </button>
@@ -1023,6 +1024,17 @@ class AnimeStreamApp {
     const isMovie = this.currentItem.title?.toLowerCase().includes('movie');
     const minutes = isMovie ? 105 : 24;
 
+    const buildFallbackUrl = (quality, format) => {
+      const p = new URLSearchParams();
+      p.set('title', this.currentItem?.title || 'Video');
+      p.set('quality', quality);
+      p.set('format', format);
+      p.set('type', this.currentItem?.type || 'video');
+      if (this.currentItem?.id) p.set('id', this.currentItem.id);
+      if (this.currentItem?.videoUrl) p.set('url', this.currentItem.videoUrl);
+      return `/api/download/file?${p.toString()}`;
+    };
+
     const fallbackFormats = [
       {
         quality: '1080p',
@@ -1034,7 +1046,7 @@ class AnimeStreamApp {
         resolution: '1920x1080',
         bitrate: '~3.2 Mbps',
         recommended: true,
-        directUrl: this.currentItem.videoUrl ? `/api/download/file?url=${encodeURIComponent(this.currentItem.videoUrl)}&title=${encodeURIComponent(this.currentItem.title)}&quality=1080p&format=mp4` : null,
+        directUrl: buildFallbackUrl('1080p', 'mp4'),
         externalUrl: this.currentItem.type === 'youtube' ? `https://cobalt.tools/#https://www.youtube.com/watch?v=${this.currentItem.id}` : (this.currentItem.videoUrl || window.location.href)
       },
       {
@@ -1047,7 +1059,7 @@ class AnimeStreamApp {
         resolution: '1280x720',
         bitrate: '~1.8 Mbps',
         recommended: false,
-        directUrl: this.currentItem.videoUrl ? `/api/download/file?url=${encodeURIComponent(this.currentItem.videoUrl)}&title=${encodeURIComponent(this.currentItem.title)}&quality=720p&format=mp4` : null,
+        directUrl: buildFallbackUrl('720p', 'mp4'),
         externalUrl: this.currentItem.type === 'youtube' ? `https://cobalt.tools/#https://www.youtube.com/watch?v=${this.currentItem.id}` : (this.currentItem.videoUrl || window.location.href)
       },
       {
@@ -1060,7 +1072,7 @@ class AnimeStreamApp {
         resolution: '854x480',
         bitrate: '~950 kbps',
         recommended: false,
-        directUrl: this.currentItem.videoUrl ? `/api/download/file?url=${encodeURIComponent(this.currentItem.videoUrl)}&title=${encodeURIComponent(this.currentItem.title)}&quality=480p&format=mp4` : null,
+        directUrl: buildFallbackUrl('480p', 'mp4'),
         externalUrl: this.currentItem.type === 'youtube' ? `https://en.savefrom.net/1-youtube-video-downloader-4vA/?url=https://youtube.com/watch?v=${this.currentItem.id}` : (this.currentItem.videoUrl || window.location.href)
       },
       {
@@ -1073,7 +1085,7 @@ class AnimeStreamApp {
         resolution: '640x360',
         bitrate: '~500 kbps',
         recommended: false,
-        directUrl: this.currentItem.videoUrl ? `/api/download/file?url=${encodeURIComponent(this.currentItem.videoUrl)}&title=${encodeURIComponent(this.currentItem.title)}&quality=360p&format=mp4` : null,
+        directUrl: buildFallbackUrl('360p', 'mp4'),
         externalUrl: this.currentItem.type === 'youtube' ? `https://www.y2mate.com/youtube/${this.currentItem.id}` : (this.currentItem.videoUrl || window.location.href)
       },
       {
@@ -1086,7 +1098,7 @@ class AnimeStreamApp {
         resolution: 'Audio Only',
         bitrate: '320 kbps MP3',
         recommended: false,
-        directUrl: this.currentItem.videoUrl ? `/api/download/file?url=${encodeURIComponent(this.currentItem.videoUrl)}&title=${encodeURIComponent(this.currentItem.title)}&quality=Audio&format=mp3` : null,
+        directUrl: buildFallbackUrl('320kbps', 'mp3'),
         externalUrl: this.currentItem.type === 'youtube' ? `https://www.y2mate.com/youtube-mp3/${this.currentItem.id}` : (this.currentItem.videoUrl || window.location.href)
       }
     ];
@@ -1104,23 +1116,38 @@ class AnimeStreamApp {
     }
   }
 
-  // Execute Download Action
-  executeDownload(encodedUrl, filename, quality, format, isDirect) {
+  // Execute Download Action - Enforces Genuine File Download without page redirection
+  executeDownload(event, encodedUrl, filename, quality, format, isExternalOnly = false) {
+    if (event && event.preventDefault) {
+      event.preventDefault();
+    }
     const url = decodeURIComponent(encodedUrl);
     this.showToast(`Starting ${quality} download (${format.toUpperCase()})...`, 'download');
 
-    if (isDirect) {
-      // Genuine native browser download trigger
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } else {
-      // Open stream / converter mirror in dedicated window
+    if (isExternalOnly) {
       window.open(url, '_blank', 'noopener,noreferrer');
+      return;
     }
+
+    // Trigger genuine browser download directly to the Downloads folder
+    // Using a hidden iframe with attachment headers avoids page redirection and never plays video in a new tab!
+    let dlIframe = document.getElementById('dl-hidden-iframe');
+    if (!dlIframe) {
+      dlIframe = document.createElement('iframe');
+      dlIframe.id = 'dl-hidden-iframe';
+      dlIframe.style.display = 'none';
+      document.body.appendChild(dlIframe);
+    }
+    dlIframe.src = url;
+
+    // Direct browser anchor fallback
+    const a = document.createElement('a');
+    a.href = url;
+    a.setAttribute('download', filename);
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => a.remove(), 2000);
   }
 
   closeDownloadModal() {
@@ -1132,8 +1159,9 @@ class AnimeStreamApp {
   }
 
   copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-      this.showToast('Link copied to clipboard!', 'clipboard-check');
+    const fullUrl = text.startsWith('/') ? window.location.origin + text : text;
+    navigator.clipboard.writeText(fullUrl).then(() => {
+      this.showToast('Download link copied to clipboard!', 'clipboard-check');
     }).catch(() => {
       this.showToast('Could not copy link', 'alert-circle');
     });
