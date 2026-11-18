@@ -15,6 +15,7 @@ const ytdl = new Ytdl();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/releases', express.static(path.join(__dirname, 'releases')));
 
 // Simple in-memory cache to reduce external API requests and prevent rate-limiting
 const cache = new Map();
@@ -873,6 +874,7 @@ app.get('/api/download/resolve', async (req, res) => {
       if (episode) p.set('episode', episode);
       if (videoId) p.set('id', videoId);
       if (videoUrl) p.set('url', videoUrl);
+      if (subtitleVttUrl) p.set('subtitleUrl', subtitleVttUrl);
       return `/api/download/file?${p.toString()}`;
     };
 
@@ -1060,6 +1062,7 @@ app.get('/api/download/file', async (req, res) => {
     if (isAnime) {
       const resolved = await resolveAnimeEmbedSource(fileUrl || req.query.id, episode);
       const subUrl = resolved.subplaylistUrl;
+      const subVttUrl = resolved.subtitleUrl || (req.query.subtitleUrl && req.query.subtitleUrl.startsWith('http') ? req.query.subtitleUrl : null);
 
       const headers = [
         'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0',
@@ -1085,19 +1088,47 @@ app.get('/api/download/file', async (req, res) => {
           'pipe:1'
         ];
       } else {
-        // MP4 remuxing with bitstream filter to fix AAC ADTS
-        ffmpegArgs = [
-          '-loglevel', 'error',
-          '-headers', headers,
-          '-extension_picky', '0',
-          '-i', subUrl,
-          '-c:v', 'copy',
-          '-c:a', 'copy',
-          '-bsf:a', 'aac_adtstoasc',
-          '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
-          '-f', 'mp4',
-          'pipe:1'
-        ];
+        // Video MP4: Re-encode audio to AAC stereo (fixes silent/dropped audio on Android)
+        // and multiplex English subtitles directly into the MP4 file (mov_text)
+        if (subVttUrl) {
+          ffmpegArgs = [
+            '-loglevel', 'error',
+            '-headers', headers,
+            '-extension_picky', '0',
+            '-i', subUrl,
+            '-headers', headers,
+            '-i', subVttUrl,
+            '-map', '0:v:0',
+            '-map', '0:a?',
+            '-map', '1:0?',
+            '-c:v', 'copy',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-ac', '2',
+            '-c:s', 'mov_text',
+            '-metadata:s:s:0', 'language=eng',
+            '-disposition:s:0', 'default',
+            '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+            '-f', 'mp4',
+            'pipe:1'
+          ];
+        } else {
+          ffmpegArgs = [
+            '-loglevel', 'error',
+            '-headers', headers,
+            '-extension_picky', '0',
+            '-i', subUrl,
+            '-map', '0:v:0',
+            '-map', '0:a?',
+            '-c:v', 'copy',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-ac', '2',
+            '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+            '-f', 'mp4',
+            'pipe:1'
+          ];
+        }
       }
 
       const ffmpeg = spawn('ffmpeg', ffmpegArgs);
@@ -1323,6 +1354,21 @@ app.get('/api/sample-streams', (req, res) => {
         downloadUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
       }
     ]
+  });
+});
+
+// 12. App Version and In-App Update API
+app.get('/api/app/version', (req, res) => {
+  res.json({
+    success: true,
+    versionCode: 2,
+    versionName: '1.0.1',
+    mobileApkUrl: '/releases/AniStream-Mobile-v1.0.1-release.apk',
+    tvApkUrl: '/releases/AniStream-TV-v1.0.1-release.apk',
+    mobileLatestUrl: '/releases/AniStream-Mobile-latest.apk',
+    tvLatestUrl: '/releases/AniStream-TV-latest.apk',
+    releaseNotes: '• Audio Fix: Universal AAC stereo audio (clear sound on all devices)\n• Subtitle Fix: Embedded English subtitles inside MP4 downloads (no separate .srt files)\n• In-App Updates: One-click app upgrades directly from settings\n• Improved stream buffering and responsive player',
+    minSupportedVersion: 1
   });
 });
 

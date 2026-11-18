@@ -48,6 +48,7 @@ import com.anistream.mobile.models.AnimeItem;
 import com.anistream.mobile.models.DownloadOption;
 import com.anistream.mobile.models.DownloadTask;
 import com.anistream.mobile.utils.ApiClient;
+import com.anistream.mobile.utils.AppUpdater;
 import com.anistream.mobile.utils.DownloadHelper;
 import com.anistream.mobile.utils.WatchlistManager;
 
@@ -536,8 +537,17 @@ public class PlayerActivity extends AppCompatActivity {
         Button btnPresetEmulator = dialogView.findViewById(R.id.btnPresetEmulator);
         Button btnTestServer = dialogView.findViewById(R.id.btnTestServer);
         TextView tvConnectionStatus = dialogView.findViewById(R.id.tvConnectionStatus);
+        TextView tvAppVersionInfo = dialogView.findViewById(R.id.tvAppVersionInfo);
+        Button btnCheckUpdates = dialogView.findViewById(R.id.btnCheckUpdates);
         Button btnCancel = dialogView.findViewById(R.id.btnCancelServer);
         Button btnSave = dialogView.findViewById(R.id.btnSaveServer);
+
+        if (tvAppVersionInfo != null) {
+            tvAppVersionInfo.setText("v" + AppUpdater.getAppVersionName(this) + " (Build " + AppUpdater.getAppVersionCode(this) + ")");
+        }
+        if (btnCheckUpdates != null) {
+            btnCheckUpdates.setOnClickListener(v -> AppUpdater.checkForUpdates(this, true));
+        }
 
         etServerUrl.setText(apiClient.getServerUrl());
 

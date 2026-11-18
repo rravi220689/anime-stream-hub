@@ -102,6 +102,52 @@
             android:textSize="12sp" />
     </LinearLayout>
 
+    <!-- App Updates Section -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:background="@drawable/tv_card_selector"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="12dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="TV App Version &amp; Updates"
+                android:textColor="@color/tv_text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvTvAppVersionInfo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="v1.0.1 (Build 2)"
+                android:textColor="@color/tv_focus_cyan"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btnTvCheckUpdates"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:background="@drawable/tv_button_selector"
+            android:focusable="true"
+            android:paddingHorizontal="14dp"
+            android:text="Check Updates"
+            android:textAllCaps="false"
+            android:textColor="@color/tv_text_primary"
+            android:textSize="12sp" />
+    </LinearLayout>
+
     <!-- Dialog Actions -->
     <LinearLayout
         android:layout_width="match_parent"

@@ -172,35 +172,7 @@ public class DownloadHelper {
             notifyDownloadsChanged();
             startPolling(context);
 
-            // Auto-download English subtitles companion with matching base filename
-            boolean subQueued = false;
-            if (subtitleUrl != null && !subtitleUrl.isEmpty() && !isAudio) {
-                try {
-                    String fullSubUrl = subtitleUrl.startsWith("/") ? (serverUrl + subtitleUrl) : subtitleUrl;
-                    Uri subUri = Uri.parse(fullSubUrl);
-                    DownloadManager.Request subRequest = new DownloadManager.Request(subUri);
-                    String subFileName = cleanTitle + "_" + quality.replaceAll("[^a-zA-Z0-9]", "") + ".srt";
-
-                    subRequest.setTitle(title + " English Subtitles");
-                    subRequest.setDescription("Companion English subtitles for " + quality);
-                    subRequest.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                    subRequest.setMimeType("application/x-subrip");
-                    try {
-                        subRequest.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "AniStream/" + subFileName);
-                    } catch (Exception e) {
-                        subRequest.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, subFileName);
-                    }
-                    long subId = manager.enqueue(subRequest);
-                    DownloadTask subTask = new DownloadTask(subId, title + " Subtitles", "ENG SUB", "srt", subFileName, 45000);
-                    tasks.add(0, subTask);
-                    subQueued = true;
-                } catch (Exception ignored) {}
-            }
-
-            String msg = (isAudio ? "Downloading Audio: " : "Downloading Video: ") + fileName;
-            if (subQueued) {
-                msg += "\n+ Companion English Subtitles (.srt)";
-            }
+            String msg = isAudio ? ("Downloading Audio: " + fileName) : ("Downloading Video (Subtitles Included): " + fileName);
             Toast.makeText(context, msg, Toast.LENGTH_LONG).show();
 
         } catch (Exception e) {

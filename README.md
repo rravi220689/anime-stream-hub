@@ -35,11 +35,13 @@ AniStream HUB is a modern web application engineered to aggregate, stream, and d
 
 ---
 
-### 📥 3. Video & Companion Subtitle Download Manager
+### 📥 3. Video & Embedded Subtitle Download Manager
 - **Full Anime Episode Downloads**: Downloads full 24-minute episodes (not short teaser clips) remuxed directly into high-quality MP4 or MP3 with multi-resolution support (1080p, 720p, 480p, 360p).
-- **High-Quality MP3 Audio Downloads**: Direct high-fidelity 320kbps MP3 audio extraction from any anime episode, YouTube cartoon, or direct video stream.
-- **Companion English Subtitles (.srt & .vtt)**: Subtitles are automatically resolved from the stream source and downloaded alongside the video file into `/sdcard/Download/AniStream/` with matching base filenames (e.g. `One_Piece_Episode_1_1080p.mp4` and `One_Piece_Episode_1_1080p.srt`) for instant auto-loading in VLC, MX Player, and Android media players. Dedicated subtitle-only downloads are also available.
+- **Universal Crystal-Clear AAC Audio**: Audio is transcoded to pristine 192kbps AAC 48kHz stereo, guaranteeing 100% audio compatibility and synchronization on every Android device, tablet, TV, VLC, and MX Player without any audio start delays or silent playback issues.
+- **Subtitles Embedded Directly Inside Video Downloads**: English subtitles are embedded straight into the downloaded `.mp4` video container (`mov_text` soft-subtitle stream marked as default), completely eliminating separate loose `.srt` files and providing instant one-file playback with subtitles in all mobile and TV video players. Dedicated subtitle-only downloads (`.srt`) remain available on demand.
 - **Real-Time Download Progress Tracking**: Real-time progress tracking (`%`, `XX MB / YY MB`, animated progress bar, status text) visible in Android system notifications, in-app floating progress card, and dedicated in-app **Download Manager Dialog**.
+- **In-App APK Upgrader**: Seamless one-click in-app update checker for both Mobile and TV apps. Notifies users of new releases, downloads the updated APK, and launches the Android Package Installer directly with zero data loss using matching release keystore signatures (`anistream-release.jks`).
+- **High-Quality MP3 Audio Downloads**: Direct high-fidelity 320kbps MP3 audio extraction from any anime episode, YouTube cartoon, or direct video stream.
 - **YouTube Video Downloader**: Integrated access to Cobalt HD (1080p/720p ad-free), Y2Mate (MP4/MP3), and SaveFrom.
 - **Stream Link Exporter**: One-click copy stream source URL for VLC, MPV, or external download managers.
 - **Dynamic Server URL Updater**: Easily update and test backend server URLs anytime in both mobile and TV apps (on home screen and inside video player) with one-click presets (`http://rravi.ddns.net:4008`, `http://10.0.2.2:5050`) and live connection ping testing.
@@ -406,9 +408,10 @@ In addition to the responsive Web app, this repository contains **two dedicated 
 ### 1. 📱 AniStream Mobile (`android-app/`)
 - **Package**: `com.anistream.mobile`
 - **Target**: Android phones & tablets (SDK 24 - 34)
-- **Features**: Bottom navigation, cartoon category chips, universal responsive pagination (`Prev`, `Next`, Jump to Page dialog with page numbers and total items), offline watchlist, ExoPlayer Media3 player with Fullscreen auto-rotation, aspect ratio cycling (Fit, Zoom, Stretch), PiP (Picture-in-Picture), custom cyberpunk adaptive app icons, and multi-resolution original episode and companion English subtitles (`.srt`) Download Manager (1080p, 720p, 480p, MP3).
+- **Features**: Bottom navigation, cartoon category chips, universal responsive pagination (`Prev`, `Next`, Jump to Page dialog with page numbers and total items), offline watchlist, ExoPlayer Media3 player with Fullscreen auto-rotation, aspect ratio cycling (Fit, Zoom, Stretch), PiP (Picture-in-Picture), custom cyberpunk adaptive app icons, multi-resolution original episode downloads with pristine 192kbps AAC stereo sound and embedded English subtitles (`mov_text`), in-app APK upgrader with automatic update checks, and real-time live download tracking.
 - **Default Server**: `http://rravi.ddns.net:4008` (configurable in settings)
-- **Pre-Built Signed Release**: [`releases/AniStream-Mobile-v1.0.0-release.apk`](releases/AniStream-Mobile-v1.0.0-release.apk)
+- **Pre-Built Signed Release (v1.0.1)**: [`releases/AniStream-Mobile-v1.0.1-release.apk`](releases/AniStream-Mobile-v1.0.1-release.apk)
+- **Latest Release Direct Link**: [`releases/AniStream-Mobile-latest.apk`](releases/AniStream-Mobile-latest.apk)
 - **Build Release APK**:
   ```bash
   cd android-app && JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleRelease
@@ -418,9 +421,10 @@ In addition to the responsive Web app, this repository contains **two dedicated 
 ### 2. 📺 AniStream TV (`android-tv/`)
 - **Package**: `com.anistream.tv`
 - **Target**: Android TV, Google TV & Fire TV (SDK 24 - 34)
-- **Features**: 10-foot Leanback UI, D-pad remote navigation with focus scaling & glowing borders, dynamic Spotlight hero banner, 4 horizontal category rails with universal TV D-pad focusable pagination bar (`‹ Prev Page`, `Next Page ›`, page status), remote-friendly fullscreen TV player with D-pad aspect ratio toggle (`Fit`, `Zoom`, `Stretch`), center badge indicators, and matching TV banner.
+- **Features**: 10-foot Leanback UI, D-pad remote navigation with focus scaling & glowing borders, dynamic Spotlight hero banner, 4 horizontal category rails with universal TV D-pad focusable pagination bar (`‹ Prev Page`, `Next Page ›`, page status), remote-friendly fullscreen TV player with D-pad aspect ratio toggle (`Fit`, `Zoom`, `Stretch`), in-app TV APK upgrader with automatic update checks, and matching TV banner.
 - **Default Server**: `http://rravi.ddns.net:4008` (configurable in settings)
-- **Pre-Built Signed Release**: [`releases/AniStream-TV-v1.0.0-release.apk`](releases/AniStream-TV-v1.0.0-release.apk)
+- **Pre-Built Signed Release (v1.0.1)**: [`releases/AniStream-TV-v1.0.1-release.apk`](releases/AniStream-TV-v1.0.1-release.apk)
+- **Latest Release Direct Link**: [`releases/AniStream-TV-latest.apk`](releases/AniStream-TV-latest.apk)
 - **Build Release APK**:
   ```bash
   cd android-tv && JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleRelease
@@ -434,35 +438,36 @@ In addition to the responsive Web app, this repository contains **two dedicated 
 ```
 anime-stream-hub/
 ├── package.json          # Web backend dependencies & scripts
-├── server.js             # Express backend (AniList API, YouTube Scraper, Stream Resolvers)
+├── server.js             # Express backend (AniList API, Stream Resolvers, Embedded Sub Muxer & Update API)
 ├── Dockerfile            # Container deployment configuration
 ├── docker-compose.yml    # Multi-container orchestration
 ├── README.md             # Documentation
-├── keystore/             # 🔐 Production release keystore & signing specs
-├── releases/             # 📦 Signed Production Release APKs ready to install
-│   ├── AniStream-Mobile-v1.0.0-release.apk
-│   └── AniStream-TV-v1.0.0-release.apk
+├── releases/             # 📦 Signed Production Release APKs ready to install & upgrade
+│   ├── AniStream-Mobile-v1.0.1-release.apk # Mobile v1.0.1 (Build 2)
+│   ├── AniStream-TV-v1.0.1-release.apk     # Android TV v1.0.1 (Build 2)
+│   ├── AniStream-Mobile-latest.apk         # Direct latest mobile pointer
+│   └── AniStream-TV-latest.apk             # Direct latest TV pointer
 ├── public/               # Web client SPA
 │   ├── index.html        # Responsive HTML5 layout
 │   ├── favicon.svg       # Cyberpunk neon brand SVG icon
 │   ├── css/style.css     # Glassmorphism & auto-adjusting responsive grid
 │   └── js/app.js         # Client controller, HLS player & download triggers
-├── android-app/          # 📱 Standalone Android Phone/Tablet Subproject
+├── android-app/          # 📱 Standalone Android Phone/Tablet Subproject (v1.0.1)
 │   ├── build.gradle      # Root Gradle script for mobile app
 │   ├── settings.gradle
 │   ├── gradlew
 │   └── app/
-│       ├── build.gradle  # Mobile app build config, signing config & ExoPlayer dependencies
+│       ├── build.gradle  # Mobile app build config (versionCode 2, versionName "1.0.1"), signing config & dependencies
 │       ├── anistream-release.jks # Release signing keystore
-│       └── src/main/     # Java code, layouts, and drawables
-└── android-tv/           # 📺 Standalone Android TV Subproject
+│       └── src/main/     # Java code (AppUpdater, DownloadHelper), layouts, and drawables
+└── android-tv/           # 📺 Standalone Android TV Subproject (v1.0.1)
     ├── build.gradle      # Root Gradle script for TV app
     ├── settings.gradle
     ├── gradlew
     └── app/
-        ├── build.gradle  # TV app build config, signing config & Leanback UI dependencies
+        ├── build.gradle  # TV app build config (versionCode 2, versionName "1.0.1"), signing config & Leanback UI dependencies
         ├── anistream-release.jks # Release signing keystore
-        └── src/main/     # Java code, TV rails, D-pad remote handlers
+        └── src/main/     # Java code (TvAppUpdater, TvMainActivity), TV rails, D-pad remote handlers
 ```
 
 ---

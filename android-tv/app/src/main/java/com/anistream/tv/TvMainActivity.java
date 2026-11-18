@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.anistream.tv.adapters.TvAnimeCardAdapter;
 import com.anistream.tv.models.TvAnimeItem;
 import com.anistream.tv.utils.TvApiClient;
+import com.anistream.tv.utils.TvAppUpdater;
 import com.anistream.tv.utils.TvFocusHelper;
 import com.bumptech.glide.Glide;
 
@@ -63,6 +64,9 @@ public class TvMainActivity extends AppCompatActivity {
         setupNavigation();
         setupRails();
         loadTvContent();
+
+        // Check for TV updates silently in background
+        TvAppUpdater.checkForUpdates(this, false);
     }
 
     private void initViews() {
@@ -262,12 +266,21 @@ public class TvMainActivity extends AppCompatActivity {
         Button btnPresetEmulator = dialogView.findViewById(R.id.btnTvPresetEmulator);
         Button btnTestServer = dialogView.findViewById(R.id.btnTvTestServer);
         TextView tvConnectionStatus = dialogView.findViewById(R.id.tvTvConnectionStatus);
+        TextView tvTvAppVersionInfo = dialogView.findViewById(R.id.tvTvAppVersionInfo);
+        Button btnTvCheckUpdates = dialogView.findViewById(R.id.btnTvCheckUpdates);
         Button btnCancel = dialogView.findViewById(R.id.btnCancelTvServer);
         Button btnSave = dialogView.findViewById(R.id.btnSaveTvServer);
 
         TvFocusHelper.applyTvFocusAnimation(btnPresetDefault);
         TvFocusHelper.applyTvFocusAnimation(btnPresetEmulator);
         TvFocusHelper.applyTvFocusAnimation(btnTestServer);
+        if (btnTvCheckUpdates != null) {
+            TvFocusHelper.applyTvFocusAnimation(btnTvCheckUpdates);
+            btnTvCheckUpdates.setOnClickListener(v -> TvAppUpdater.checkForUpdates(this, true));
+        }
+        if (tvTvAppVersionInfo != null) {
+            tvTvAppVersionInfo.setText("v" + TvAppUpdater.getAppVersionName(this) + " (Build " + TvAppUpdater.getAppVersionCode(this) + ")");
+        }
         TvFocusHelper.applyTvFocusAnimation(btnCancel);
         TvFocusHelper.applyTvFocusAnimation(btnSave);
 
