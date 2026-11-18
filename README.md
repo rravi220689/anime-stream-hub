@@ -37,7 +37,9 @@ AniStream HUB is a modern web application engineered to aggregate, stream, and d
 
 ### 📥 3. Video & Companion Subtitle Download Manager
 - **Full Anime Episode Downloads**: Downloads full 24-minute episodes (not short teaser clips) remuxed directly into high-quality MP4 or MP3 with multi-resolution support (1080p, 720p, 480p, 360p).
+- **High-Quality MP3 Audio Downloads**: Direct high-fidelity 320kbps MP3 audio extraction from any anime episode, YouTube cartoon, or direct video stream.
 - **Companion English Subtitles (.srt & .vtt)**: Subtitles are automatically resolved from the stream source and downloaded alongside the video file into `/sdcard/Download/AniStream/` with matching base filenames (e.g. `One_Piece_Episode_1_1080p.mp4` and `One_Piece_Episode_1_1080p.srt`) for instant auto-loading in VLC, MX Player, and Android media players. Dedicated subtitle-only downloads are also available.
+- **Real-Time Download Progress Tracking**: Real-time progress tracking (`%`, `XX MB / YY MB`, animated progress bar, status text) visible in Android system notifications, in-app floating progress card, and dedicated in-app **Download Manager Dialog**.
 - **YouTube Video Downloader**: Integrated access to Cobalt HD (1080p/720p ad-free), Y2Mate (MP4/MP3), and SaveFrom.
 - **Stream Link Exporter**: One-click copy stream source URL for VLC, MPV, or external download managers.
 - **Dynamic Server URL Updater**: Easily update and test backend server URLs anytime in both mobile and TV apps (on home screen and inside video player) with one-click presets (`http://rravi.ddns.net:4008`, `http://10.0.2.2:5050`) and live connection ping testing.

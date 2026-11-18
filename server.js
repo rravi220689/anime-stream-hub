@@ -701,18 +701,25 @@ async function resolveAnimeEmbedSource(embedUrlOrId, epNum = 1) {
   }
 
   let subplaylistUrl = `https://animeembed.com${masterPath}`;
-  try {
-    const masterResp = await axios.get(`https://animeembed.com${masterPath}`, {
-      headers: browserHeaders,
-      timeout: 12000
-    });
-    const lines = masterResp.data.split('\n');
-    const subLine = lines.find(l => l.trim().startsWith('/media/'));
-    if (subLine) {
-      subplaylistUrl = `https://animeembed.com${subLine.trim()}`;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const masterResp = await axios.get(`https://animeembed.com${masterPath}`, {
+        headers: browserHeaders,
+        timeout: 12000
+      });
+      const lines = masterResp.data.split('\n');
+      const subLine = lines.find(l => l.trim().startsWith('/media/'));
+      if (subLine) {
+        subplaylistUrl = `https://animeembed.com${subLine.trim()}`;
+        break;
+      }
+    } catch (mErr) {
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 400));
+      } else {
+        console.warn('Could not read master M3U8 subplaylist after 3 attempts, using master directly:', mErr.message);
+      }
     }
-  } catch (mErr) {
-    console.warn('Could not read master M3U8 subplaylist, using master directly:', mErr.message);
   }
 
   return {
@@ -1073,7 +1080,7 @@ app.get('/api/download/file', async (req, res) => {
           '-i', subUrl,
           '-vn',
           '-c:a', 'libmp3lame',
-          '-q:a', '2',
+          '-b:a', '320k',
           '-f', 'mp3',
           'pipe:1'
         ];
@@ -1118,14 +1125,31 @@ app.get('/api/download/file', async (req, res) => {
         const audioStream = ytdl.download(targetId, {
           filter: f => !f.hasVideo && f.hasAudio
         });
+        const ffmpeg = spawn('ffmpeg', [
+          '-loglevel', 'error',
+          '-i', 'pipe:0',
+          '-vn',
+          '-c:a', 'libmp3lame',
+          '-b:a', '320k',
+          '-f', 'mp3',
+          'pipe:1'
+        ]);
+        ffmpeg.stdin.on('error', () => {});
         audioStream.on('error', (err) => {
           console.error('YouTube audio download stream error:', err.message);
+          try { ffmpeg.kill('SIGKILL'); } catch (_) {}
+          if (!res.headersSent) res.status(500).end();
+        });
+        ffmpeg.on('error', (err) => {
+          console.error('YouTube ffmpeg audio error:', err.message);
           if (!res.headersSent) res.status(500).end();
         });
         req.on('close', () => {
           try { audioStream.destroy(); } catch (_) {}
+          try { ffmpeg.kill('SIGKILL'); } catch (_) {}
         });
-        return audioStream.pipe(res);
+        audioStream.pipe(ffmpeg.stdin);
+        return ffmpeg.stdout.pipe(res);
       }
 
       // MP4 / WebM with Muxed Audio + Video via ffmpeg
@@ -1199,6 +1223,24 @@ app.get('/api/download/file', async (req, res) => {
 
     // 3. Direct HTTP / HTTPS file streaming (MP4 / WebM / sample video)
     if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
+      if (format === 'mp3') {
+        const ffmpeg = spawn('ffmpeg', [
+          '-loglevel', 'error',
+          '-i', fileUrl,
+          '-vn',
+          '-c:a', 'libmp3lame',
+          '-b:a', '320k',
+          '-f', 'mp3',
+          'pipe:1'
+        ]);
+        ffmpeg.on('error', (err) => {
+          if (!res.headersSent) res.status(500).end();
+        });
+        req.on('close', () => {
+          try { ffmpeg.kill('SIGKILL'); } catch (_) {}
+        });
+        return ffmpeg.stdout.pipe(res);
+      }
       const response = await axios({
         method: 'get',
         url: fileUrl,

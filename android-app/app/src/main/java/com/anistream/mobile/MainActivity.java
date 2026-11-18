@@ -17,7 +17,9 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.anistream.mobile.adapters.AnimeAdapter;
 import com.anistream.mobile.models.AnimeItem;
+import com.anistream.mobile.models.DownloadTask;
 import com.anistream.mobile.utils.ApiClient;
+import com.anistream.mobile.utils.DownloadHelper;
 import com.anistream.mobile.utils.WatchlistManager;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.chip.ChipGroup;
@@ -45,6 +47,12 @@ public class MainActivity extends AppCompatActivity {
     private Button btnNextPage;
     private TextView tvPaginationInfo;
 
+    private View mainDownloadProgressCard;
+    private TextView tvMainDlTitle;
+    private ProgressBar pbMainDlProgress;
+    private TextView tvMainDlStatusText;
+    private DownloadHelper.DownloadProgressListener downloadProgressListener;
+
     private ApiClient apiClient;
     private WatchlistManager watchlistManager;
 
@@ -66,8 +74,58 @@ public class MainActivity extends AppCompatActivity {
         initViews();
         setupRecyclerView();
         setupListeners();
+        setupDownloadListener();
 
         loadContentForCurrentTab();
+    }
+
+    private void setupDownloadListener() {
+        downloadProgressListener = new DownloadHelper.DownloadProgressListener() {
+            @Override
+            public void onProgressUpdate(DownloadTask task) {
+                runOnUiThread(() -> updateDownloadBanner());
+            }
+
+            @Override
+            public void onDownloadComplete(DownloadTask task) {
+                runOnUiThread(() -> updateDownloadBanner());
+            }
+
+            @Override
+            public void onDownloadsChanged() {
+                runOnUiThread(() -> updateDownloadBanner());
+            }
+        };
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (downloadProgressListener != null) {
+            DownloadHelper.addListener(downloadProgressListener);
+        }
+        updateDownloadBanner();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (downloadProgressListener != null) {
+            DownloadHelper.removeListener(downloadProgressListener);
+        }
+    }
+
+    private void updateDownloadBanner() {
+        if (mainDownloadProgressCard == null) return;
+        DownloadTask task = DownloadHelper.getLatestActiveTask();
+        if (task != null && (task.status == android.app.DownloadManager.STATUS_RUNNING || task.status == android.app.DownloadManager.STATUS_PENDING)) {
+            mainDownloadProgressCard.setVisibility(View.VISIBLE);
+            tvMainDlTitle.setText((task.isAudio ? "🎵 Audio: " : "🎬 Video: ") + task.title + " (" + task.quality + ")");
+            pbMainDlProgress.setProgress(task.progressPercent);
+            tvMainDlStatusText.setText(task.statusText);
+        } else {
+            mainDownloadProgressCard.setVisibility(View.GONE);
+        }
     }
 
     private void initViews() {
@@ -88,6 +146,11 @@ public class MainActivity extends AppCompatActivity {
         btnPrevPage = findViewById(R.id.btnPrevPage);
         btnNextPage = findViewById(R.id.btnNextPage);
         tvPaginationInfo = findViewById(R.id.tvPaginationInfo);
+
+        mainDownloadProgressCard = findViewById(R.id.mainDownloadProgressCard);
+        tvMainDlTitle = findViewById(R.id.tvMainDlTitle);
+        pbMainDlProgress = findViewById(R.id.pbMainDlProgress);
+        tvMainDlStatusText = findViewById(R.id.tvMainDlStatusText);
     }
 
     private void setupRecyclerView() {
@@ -142,6 +205,21 @@ public class MainActivity extends AppCompatActivity {
         // Settings / Server IP
         ImageView btnSettings = findViewById(R.id.btnSettings);
         btnSettings.setOnClickListener(v -> showServerSettingsDialog());
+
+        // Downloads Manager
+        ImageView btnMainDownloads = findViewById(R.id.btnMainDownloads);
+        if (btnMainDownloads != null) {
+            btnMainDownloads.setOnClickListener(v -> DownloadHelper.showDownloadsDialog(this));
+        }
+
+        if (mainDownloadProgressCard != null) {
+            mainDownloadProgressCard.setOnClickListener(v -> DownloadHelper.showDownloadsDialog(this));
+        }
+
+        View btnMainDlViewAll = findViewById(R.id.btnMainDlViewAll);
+        if (btnMainDlViewAll != null) {
+            btnMainDlViewAll.setOnClickListener(v -> DownloadHelper.showDownloadsDialog(this));
+        }
 
         // Anime filter chips (Home tab)
         if (animeChipGroup != null) {

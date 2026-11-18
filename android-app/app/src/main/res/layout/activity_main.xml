@@ -47,9 +47,22 @@
             android:padding="8dp"
             android:src="@drawable/ic_search"
             app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toStartOf="@id/btnSettings"
+            app:layout_constraintEnd_toStartOf="@id/btnMainDownloads"
             app:layout_constraintTop_toTopOf="parent"
             app:tint="@color/text_primary" />
+
+        <ImageView
+            android:id="@+id/btnMainDownloads"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Downloads"
+            android:padding="8dp"
+            android:src="@drawable/ic_download"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/btnSettings"
+            app:layout_constraintTop_toTopOf="parent"
+            app:tint="@color/accent_cyan" />
 
         <ImageView
             android:id="@+id/btnSettings"
@@ -259,6 +272,77 @@
             android:padding="8dp"
             tools:listitem="@layout/item_anime_card" />
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+    <!-- Live Floating Download Progress Banner -->
+    <LinearLayout
+        android:id="@+id/mainDownloadProgressCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginBottom="6dp"
+        android:background="@drawable/bg_card"
+        android:elevation="12dp"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/paginationBar">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_download"
+                app:tint="@color/accent_cyan" />
+
+            <TextView
+                android:id="@+id/tvMainDlTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-bold"
+                android:maxLines="1"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                tools:text="Downloading: One Piece Episode 1" />
+
+            <TextView
+                android:id="@+id/btnMainDlViewAll"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-bold"
+                android:padding="4dp"
+                android:text="VIEW ALL ›"
+                android:textColor="@color/accent_cyan"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/pbMainDlProgress"
+            style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="8dp"
+            android:max="100"
+            android:progress="35"
+            android:progressTint="@color/accent_cyan" />
+
+        <TextView
+            android:id="@+id/tvMainDlStatusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="@color/accent_cyan"
+            android:textSize="11sp"
+            tools:text="112.5 MB / 331.0 MB (35%) • Downloading..." />
+    </LinearLayout>
 
     <!-- Universal Responsive Pagination Bar -->
     <LinearLayout

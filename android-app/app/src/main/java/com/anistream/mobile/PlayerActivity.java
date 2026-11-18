@@ -46,6 +46,7 @@ import com.anistream.mobile.adapters.DownloadOptionsAdapter;
 import com.anistream.mobile.adapters.EpisodeAdapter;
 import com.anistream.mobile.models.AnimeItem;
 import com.anistream.mobile.models.DownloadOption;
+import com.anistream.mobile.models.DownloadTask;
 import com.anistream.mobile.utils.ApiClient;
 import com.anistream.mobile.utils.DownloadHelper;
 import com.anistream.mobile.utils.WatchlistManager;
@@ -71,10 +72,17 @@ public class PlayerActivity extends AppCompatActivity {
     private TextView tvAspectRatioBadge;
 
     private ImageView btnPlayerBack;
+    private ImageView btnPlayerDownloads;
     private ImageView btnPlayerServerSettings;
     private ImageView btnPlayerPip;
     private ImageView btnToggleAspectRatio;
     private ImageView btnToggleFullscreen;
+
+    private View playerDownloadProgressCard;
+    private TextView tvPlayerDlTitle;
+    private ProgressBar pbPlayerDlProgress;
+    private TextView tvPlayerDlStatusText;
+    private DownloadHelper.DownloadProgressListener playerDownloadListener;
 
     private ExoPlayer exoPlayer;
     private AnimeItem item;
@@ -112,7 +120,27 @@ public class PlayerActivity extends AppCompatActivity {
         initViews();
         setupPlayer();
         setupDetails();
+        setupDownloadListener();
         loadMediaStream();
+    }
+
+    private void setupDownloadListener() {
+        playerDownloadListener = new DownloadHelper.DownloadProgressListener() {
+            @Override
+            public void onProgressUpdate(DownloadTask task) {
+                runOnUiThread(() -> updatePlayerDownloadBanner());
+            }
+
+            @Override
+            public void onDownloadComplete(DownloadTask task) {
+                runOnUiThread(() -> updatePlayerDownloadBanner());
+            }
+
+            @Override
+            public void onDownloadsChanged() {
+                runOnUiThread(() -> updatePlayerDownloadBanner());
+            }
+        };
     }
 
     private void initViews() {
@@ -140,6 +168,23 @@ public class PlayerActivity extends AppCompatActivity {
                 finish();
             }
         });
+
+        btnPlayerDownloads = findViewById(R.id.btnPlayerDownloads);
+        if (btnPlayerDownloads != null) {
+            btnPlayerDownloads.setOnClickListener(v -> DownloadHelper.showDownloadsDialog(this));
+        }
+
+        playerDownloadProgressCard = findViewById(R.id.playerDownloadProgressCard);
+        tvPlayerDlTitle = findViewById(R.id.tvPlayerDlTitle);
+        pbPlayerDlProgress = findViewById(R.id.pbPlayerDlProgress);
+        tvPlayerDlStatusText = findViewById(R.id.tvPlayerDlStatusText);
+        if (playerDownloadProgressCard != null) {
+            playerDownloadProgressCard.setOnClickListener(v -> DownloadHelper.showDownloadsDialog(this));
+        }
+        View btnPlayerDlViewAll = findViewById(R.id.btnPlayerDlViewAll);
+        if (btnPlayerDlViewAll != null) {
+            btnPlayerDlViewAll.setOnClickListener(v -> DownloadHelper.showDownloadsDialog(this));
+        }
 
         btnPlayerServerSettings = findViewById(R.id.btnPlayerServerSettings);
         if (btnPlayerServerSettings != null) {
@@ -464,7 +509,7 @@ public class PlayerActivity extends AppCompatActivity {
                     loading.setVisibility(View.GONE);
                     DownloadOptionsAdapter optAdapter = new DownloadOptionsAdapter(PlayerActivity.this, option -> {
                         String dlUrl = option.directUrl != null ? option.directUrl : option.externalUrl;
-                        DownloadHelper.startDownload(PlayerActivity.this, dlUrl, option.subtitleUrl, downloadTitle, option.quality, option.format);
+                        DownloadHelper.startDownload(PlayerActivity.this, dlUrl, option.subtitleUrl, downloadTitle, option.quality, option.format, option.size);
                         dialog.dismiss();
                     });
                     optAdapter.setOptions(result);
@@ -587,6 +632,9 @@ public class PlayerActivity extends AppCompatActivity {
         if (playerWebView != null) {
             playerWebView.onPause();
         }
+        if (playerDownloadListener != null) {
+            DownloadHelper.removeListener(playerDownloadListener);
+        }
     }
 
     @Override
@@ -594,6 +642,23 @@ public class PlayerActivity extends AppCompatActivity {
         super.onResume();
         if (playerWebView != null) {
             playerWebView.onResume();
+        }
+        if (playerDownloadListener != null) {
+            DownloadHelper.addListener(playerDownloadListener);
+        }
+        updatePlayerDownloadBanner();
+    }
+
+    private void updatePlayerDownloadBanner() {
+        if (playerDownloadProgressCard == null) return;
+        DownloadTask task = DownloadHelper.getLatestActiveTask();
+        if (task != null && (task.status == android.app.DownloadManager.STATUS_RUNNING || task.status == android.app.DownloadManager.STATUS_PENDING)) {
+            playerDownloadProgressCard.setVisibility(View.VISIBLE);
+            tvPlayerDlTitle.setText((task.isAudio ? "🎵 Audio: " : "🎬 Video: ") + task.title + " (" + task.quality + ")");
+            pbPlayerDlProgress.setProgress(task.progressPercent);
+            tvPlayerDlStatusText.setText(task.statusText);
+        } else {
+            playerDownloadProgressCard.setVisibility(View.GONE);
         }
     }
 
