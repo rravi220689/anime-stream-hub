@@ -503,7 +503,7 @@ public class PlayerActivity extends AppCompatActivity {
                 ? (item.title + " Episode " + currentEpisode)
                 : item.title;
 
-        apiClient.resolveDownloads(streamUrl, downloadTitle, item.duration, item.type, item.id, new ApiClient.ApiCallback<List<DownloadOption>>() {
+        apiClient.resolveDownloads(streamUrl, downloadTitle, item.duration, item.type, item.id, currentEpisode, new ApiClient.ApiCallback<List<DownloadOption>>() {
             @Override
             public void onSuccess(List<DownloadOption> result) {
                 runOnUiThread(() -> {

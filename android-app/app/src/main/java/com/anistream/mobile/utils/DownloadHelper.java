@@ -169,6 +169,32 @@ public class DownloadHelper {
 
             DownloadTask task = new DownloadTask(downloadId, title, quality, format, fileName, expectedBytes);
             tasks.add(0, task);
+
+            // Auto-download companion English subtitle (.srt) file into the same AniStream folder
+            // Ensures 100% visibility on all Android video players (Samsung Gallery, Google Photos, Files, VLC)
+            if (subtitleUrl != null && !subtitleUrl.trim().isEmpty() && !isAudio && !"srt".equalsIgnoreCase(format)) {
+                try {
+                    String srtUrl = subtitleUrl.startsWith("/") ? (serverUrl + subtitleUrl) : subtitleUrl;
+                    String srtFileName = cleanTitle + "_" + quality.replaceAll("[^a-zA-Z0-9]", "") + ".srt";
+                    Uri srtUri = Uri.parse(srtUrl);
+                    DownloadManager.Request srtReq = new DownloadManager.Request(srtUri);
+                    srtReq.setTitle(title + " English Subtitles");
+                    srtReq.setDescription("Companion subtitles for " + quality);
+                    srtReq.setMimeType("application/x-subrip");
+                    srtReq.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                    try {
+                        srtReq.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "AniStream/" + srtFileName);
+                    } catch (Exception e) {
+                        srtReq.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, srtFileName);
+                    }
+                    long srtDlId = manager.enqueue(srtReq);
+                    DownloadTask srtTask = new DownloadTask(srtDlId, title + " Subtitles", "ENG SUB", "srt", srtFileName, 45000);
+                    tasks.add(0, srtTask);
+                } catch (Exception subErr) {
+                    android.util.Log.w("DownloadHelper", "Companion sub enqueue error: " + subErr.getMessage());
+                }
+            }
+
             notifyDownloadsChanged();
             startPolling(context);
 

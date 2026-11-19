@@ -257,11 +257,17 @@ When testing Android TV without a physical remote control, simulate D-pad remote
 Pre-compiled and signed production release APKs are checked into the repository under `releases/`:
 
 ```bash
-# 1. Install pre-built Mobile Release APK
-adb install -r releases/AniStream-Mobile-v1.0.0-release.apk
+# 1. Install latest Mobile Release APK (v1.0.2)
+adb install -r releases/AniStream-Mobile-v1.0.2-release.apk
 
-# 2. Install pre-built TV Release APK
-adb install -r releases/AniStream-TV-v1.0.0-release.apk
+# Or install latest alias
+adb install -r releases/AniStream-Mobile-latest.apk
+
+# 2. Install latest TV Release APK (v1.0.2)
+adb install -r releases/AniStream-TV-v1.0.2-release.apk
+
+# Or install latest TV alias
+adb install -r releases/AniStream-TV-latest.apk
 ```
 
 ---
@@ -271,16 +277,16 @@ adb install -r releases/AniStream-TV-v1.0.0-release.apk
 Verify APK signature integrity and certificates:
 
 ```bash
-# Verify Mobile Release APK signature (v1 & v2 scheme)
-/home/avinash/Android/Sdk/build-tools/34.0.0/apksigner verify --verbose releases/AniStream-Mobile-v1.0.0-release.apk
+# Verify Mobile Release APK signature (v2 scheme)
+/home/avinash/Android/Sdk/build-tools/34.0.0/apksigner verify --verbose releases/AniStream-Mobile-v1.0.2-release.apk
 
-# Verify TV Release APK signature (v1 & v2 scheme)
-/home/avinash/Android/Sdk/build-tools/34.0.0/apksigner verify --verbose releases/AniStream-TV-v1.0.0-release.apk
+# Verify TV Release APK signature (v2 scheme)
+/home/avinash/Android/Sdk/build-tools/34.0.0/apksigner verify --verbose releases/AniStream-TV-v1.0.2-release.apk
 
 # Inspect Keystore certificate details
-/usr/lib/jvm/java-21-openjdk-amd64/bin/keytool -list -v \
+keytool -list -v \
   -keystore keystore/anistream-release.jks \
-  -storepass anistream_release_pass
+  -storepass anistream123
 ```
 
 ---

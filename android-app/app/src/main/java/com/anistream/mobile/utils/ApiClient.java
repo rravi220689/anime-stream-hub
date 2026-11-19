@@ -250,6 +250,10 @@ public class ApiClient {
 
     // 4. Resolve Download Formats (1080p, 720p, 480p, 360p, MP3, English Subtitles)
     public void resolveDownloads(String streamUrl, String title, String duration, String type, String id, ApiCallback<List<DownloadOption>> callback) {
+        resolveDownloads(streamUrl, title, duration, type, id, 1, callback);
+    }
+
+    public void resolveDownloads(String streamUrl, String title, String duration, String type, String id, int episode, ApiCallback<List<DownloadOption>> callback) {
         String encUrl = "";
         String encTitle = "";
         String encDuration = "";
@@ -267,7 +271,8 @@ public class ApiClient {
                 + "&title=" + encTitle
                 + "&duration=" + encDuration
                 + "&type=" + encType
-                + "&id=" + encId;
+                + "&id=" + encId
+                + "&episode=" + episode;
 
         Request request = new Request.Builder().url(url).build();
         client.newCall(request).enqueue(new Callback() {
