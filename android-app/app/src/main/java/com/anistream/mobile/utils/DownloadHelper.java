@@ -7,7 +7,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
-import android.database.Cursor;
+import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -27,11 +27,22 @@ import com.anistream.mobile.adapters.DownloadsAdapter;
 import com.anistream.mobile.models.DownloadTask;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import okhttp3.Call;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 public class DownloadHelper {
 
@@ -40,8 +51,15 @@ public class DownloadHelper {
 
     private static final List<DownloadTask> tasks = new CopyOnWriteArrayList<>();
     private static final List<DownloadProgressListener> listeners = new CopyOnWriteArrayList<>();
-    private static Handler pollHandler = null;
-    private static boolean isPolling = false;
+    private static final ConcurrentHashMap<Long, Call> activeCalls = new ConcurrentHashMap<>();
+    private static final ExecutorService downloadExecutor = Executors.newFixedThreadPool(3);
+
+    private static final OkHttpClient dlClient = new OkHttpClient.Builder()
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(180, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .build();
 
     public interface DownloadProgressListener {
         void onProgressUpdate(DownloadTask task);
@@ -76,13 +94,33 @@ public class DownloadHelper {
     }
 
     public static DownloadTask getLatestActiveTask() {
-        for (int i = tasks.size() - 1; i >= 0; i--) {
+        for (int i = 0; i < tasks.size(); i++) {
             DownloadTask t = tasks.get(i);
             if (t.status == DownloadManager.STATUS_RUNNING || t.status == DownloadManager.STATUS_PENDING) {
                 return t;
             }
         }
-        return tasks.isEmpty() ? null : tasks.get(tasks.size() - 1);
+        return tasks.isEmpty() ? null : tasks.get(0);
+    }
+
+    public static File getDownloadDir(Context context) {
+        try {
+            File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "AniStream");
+            if (!pubDir.exists()) {
+                pubDir.mkdirs();
+            }
+            if (pubDir.exists() && pubDir.canWrite()) {
+                return pubDir;
+            }
+        } catch (Exception ignored) {}
+
+        File appExt = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+        if (appExt != null) {
+            File sub = new File(appExt, "AniStream");
+            if (!sub.exists()) sub.mkdirs();
+            return sub;
+        }
+        return context.getFilesDir();
     }
 
     public static void startDownload(Context context, String downloadUrl, String title, String quality, String format) {
@@ -100,117 +138,162 @@ public class DownloadHelper {
                 downloadUrl = serverUrl + downloadUrl;
             }
 
-            DownloadManager manager = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
-            if (manager == null) {
-                Toast.makeText(context, "DownloadManager unavailable", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "AniStream");
-            try {
-                if (!dir.exists()) {
-                    dir.mkdirs();
-                }
-            } catch (Exception ignored) {}
+            Context appContext = context.getApplicationContext();
+            createNotificationChannel(appContext);
 
             String cleanTitle = title.replaceAll("[^a-zA-Z0-9_-]", "_").replaceAll("_+", "_");
             long expectedBytes = parseBytesFromSize(sizeStr);
-
-            // Case 1: Subtitle only download
-            if ("srt".equalsIgnoreCase(format) || "vtt".equalsIgnoreCase(format)) {
-                Uri subUri = Uri.parse(downloadUrl);
-                DownloadManager.Request subRequest = new DownloadManager.Request(subUri);
-                String subFileName = cleanTitle + "." + format.toLowerCase();
-                subRequest.setTitle(title + " English Subtitles");
-                subRequest.setDescription("Downloading English Subtitles (." + format.toLowerCase() + ")");
-                subRequest.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                subRequest.setMimeType("application/x-subrip");
-                try {
-                    subRequest.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "AniStream/" + subFileName);
-                } catch (Exception e) {
-                    subRequest.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, subFileName);
-                }
-                long subId = manager.enqueue(subRequest);
-                DownloadTask subTask = new DownloadTask(subId, title + " Subtitles", "ENG SUB", format, subFileName, 45000);
-                tasks.add(0, subTask);
-                notifyDownloadsChanged();
-                startPolling(context);
-                Toast.makeText(context, "Downloading English Subtitles: " + subFileName, Toast.LENGTH_LONG).show();
-                return;
-            }
-
-            // Case 2: Video or Audio download
-            Uri uri = Uri.parse(downloadUrl);
-            DownloadManager.Request request = new DownloadManager.Request(uri);
-
-            String fileName = cleanTitle + "_" + quality.replaceAll("[^a-zA-Z0-9]", "") + "." + format.toLowerCase();
-
             boolean isAudio = "mp3".equalsIgnoreCase(format);
-            request.setTitle(title + " (" + quality + ")");
-            request.setDescription(isAudio ? "Downloading High Quality MP3 Audio" : ("Downloading " + quality + " " + format.toUpperCase()));
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            boolean isSubOnly = "srt".equalsIgnoreCase(format) || "vtt".equalsIgnoreCase(format);
 
-            // Mime type
-            if (isAudio) {
-                request.setMimeType("audio/mpeg");
-            } else if ("webm".equalsIgnoreCase(format)) {
-                request.setMimeType("video/webm");
-            } else {
-                request.setMimeType("video/mp4");
-            }
+            String fileName = isSubOnly
+                    ? (cleanTitle + "." + format.toLowerCase())
+                    : (cleanTitle + "_" + quality.replaceAll("[^a-zA-Z0-9]", "") + "." + format.toLowerCase());
 
-            try {
-                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "AniStream/" + fileName);
-            } catch (Exception e) {
-                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
-            }
-
-            long downloadId = manager.enqueue(request);
-
+            long downloadId = System.currentTimeMillis() + (long) (Math.random() * 1000);
             DownloadTask task = new DownloadTask(downloadId, title, quality, format, fileName, expectedBytes);
             tasks.add(0, task);
+            notifyDownloadsChanged();
 
-            // Auto-download companion English subtitle (.srt) file into the same AniStream folder
-            // Ensures 100% visibility on all Android video players (Samsung Gallery, Google Photos, Files, VLC)
-            if (subtitleUrl != null && !subtitleUrl.trim().isEmpty() && !isAudio && !"srt".equalsIgnoreCase(format)) {
+            Toast.makeText(appContext, (isSubOnly ? "Downloading Subtitles: " : "Starting download: ") + fileName, Toast.LENGTH_SHORT).show();
+
+            // 1. Submit main video / audio / subtitle download to background executor
+            final String finalDownloadUrl = downloadUrl;
+            downloadExecutor.submit(() -> executeDownload(appContext, task, finalDownloadUrl));
+
+            // 2. Auto-download companion English subtitle (.srt) file into the same folder
+            // Guarantees external subtitle detection on all video players (Samsung Gallery, Google Photos, Files, VLC)
+            if (subtitleUrl != null && !subtitleUrl.trim().isEmpty() && !isAudio && !isSubOnly) {
                 try {
                     String srtUrl = subtitleUrl.startsWith("/") ? (serverUrl + subtitleUrl) : subtitleUrl;
                     String srtFileName = cleanTitle + "_" + quality.replaceAll("[^a-zA-Z0-9]", "") + ".srt";
-                    Uri srtUri = Uri.parse(srtUrl);
-                    DownloadManager.Request srtReq = new DownloadManager.Request(srtUri);
-                    srtReq.setTitle(title + " English Subtitles");
-                    srtReq.setDescription("Companion subtitles for " + quality);
-                    srtReq.setMimeType("application/x-subrip");
-                    srtReq.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                    try {
-                        srtReq.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "AniStream/" + srtFileName);
-                    } catch (Exception e) {
-                        srtReq.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, srtFileName);
-                    }
-                    long srtDlId = manager.enqueue(srtReq);
+                    long srtDlId = downloadId + 1;
                     DownloadTask srtTask = new DownloadTask(srtDlId, title + " Subtitles", "ENG SUB", "srt", srtFileName, 45000);
                     tasks.add(0, srtTask);
+                    notifyDownloadsChanged();
+                    downloadExecutor.submit(() -> executeDownload(appContext, srtTask, srtUrl));
                 } catch (Exception subErr) {
-                    android.util.Log.w("DownloadHelper", "Companion sub enqueue error: " + subErr.getMessage());
+                    android.util.Log.w("DownloadHelper", "Companion subtitle enqueue error: " + subErr.getMessage());
                 }
             }
 
-            notifyDownloadsChanged();
-            startPolling(context);
+        } catch (Exception e) {
+            Toast.makeText(context, "Could not start download: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
 
-            String msg = isAudio ? ("Downloading Audio: " + fileName) : ("Downloading Video (Subtitles Included): " + fileName);
-            Toast.makeText(context, msg, Toast.LENGTH_LONG).show();
+    private static void executeDownload(Context context, DownloadTask task, String url) {
+        File dir = getDownloadDir(context);
+        File targetFile = new File(dir, task.fileName);
+        Call call = null;
+
+        try {
+            task.status = DownloadManager.STATUS_RUNNING;
+            task.statusText = "Connecting...";
+            notifyProgress(task);
+            updateSystemNotification(context, task);
+
+            Request request = new Request.Builder()
+                    .url(url)
+                    .header("User-Agent", "AniStream-Mobile/1.0.3")
+                    .build();
+
+            call = dlClient.newCall(request);
+            activeCalls.put(task.downloadId, call);
+
+            Response response = call.execute();
+            if (!response.isSuccessful()) {
+                task.status = DownloadManager.STATUS_FAILED;
+                task.statusText = "Server error HTTP " + response.code();
+                notifyProgress(task);
+                updateSystemNotification(context, task);
+                return;
+            }
+
+            ResponseBody body = response.body();
+            if (body == null) {
+                task.status = DownloadManager.STATUS_FAILED;
+                task.statusText = "Empty response body from server";
+                notifyProgress(task);
+                updateSystemNotification(context, task);
+                return;
+            }
+
+            long contentLength = body.contentLength();
+            if (contentLength > 0) {
+                task.totalBytes = contentLength;
+            } else if (task.expectedBytes > 0) {
+                task.totalBytes = task.expectedBytes;
+            }
+
+            InputStream is = body.byteStream();
+            FileOutputStream fos = new FileOutputStream(targetFile);
+            byte[] buffer = new byte[32768];
+            int read;
+            long downloaded = 0;
+            long lastNotifyTime = System.currentTimeMillis();
+
+            while ((read = is.read(buffer)) != -1) {
+                fos.write(buffer, 0, read);
+                downloaded += read;
+                task.bytesDownloaded = downloaded;
+
+                long now = System.currentTimeMillis();
+                if (now - lastNotifyTime >= 500) {
+                    lastNotifyTime = now;
+                    if (task.totalBytes > 0) {
+                        int percent = (int) ((downloaded * 100) / task.totalBytes);
+                        task.progressPercent = Math.min(100, Math.max(0, percent));
+                        double mbDown = downloaded / (1024.0 * 1024.0);
+                        double mbTotal = task.totalBytes / (1024.0 * 1024.0);
+                        task.statusText = String.format("%.1f MB / %.1f MB (%d%%)", mbDown, mbTotal, task.progressPercent);
+                    } else {
+                        double mbDown = downloaded / (1024.0 * 1024.0);
+                        task.statusText = String.format("%.1f MB downloaded", mbDown);
+                    }
+                    notifyProgress(task);
+                    updateSystemNotification(context, task);
+                }
+            }
+
+            fos.flush();
+            fos.close();
+            is.close();
+
+            task.status = DownloadManager.STATUS_SUCCESSFUL;
+            task.progressPercent = 100;
+            task.bytesDownloaded = downloaded;
+            task.localUri = targetFile.getAbsolutePath();
+            double mbFinal = downloaded / (1024.0 * 1024.0);
+            task.statusText = String.format("Completed • %.1f MB", mbFinal);
+
+            notifyComplete(task);
+            updateSystemNotification(context, task);
+
+            // Trigger system media scanner so the video/audio appears immediately in Gallery and Media Players
+            MediaScannerConnection.scanFile(context, new String[]{ targetFile.getAbsolutePath() }, null, null);
 
         } catch (Exception e) {
-            Toast.makeText(context, "Download error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            boolean isCancelled = call != null && call.isCanceled();
+            task.status = DownloadManager.STATUS_FAILED;
+            task.statusText = isCancelled ? "Cancelled" : ("Failed: " + e.getMessage());
+            try {
+                if (targetFile.exists() && task.bytesDownloaded < 50000) {
+                    targetFile.delete();
+                }
+            } catch (Exception ignored) {}
+            notifyProgress(task);
+            updateSystemNotification(context, task);
+        } finally {
+            activeCalls.remove(task.downloadId);
         }
     }
 
     public static void cancelDownload(Context context, long downloadId) {
         try {
-            DownloadManager manager = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
-            if (manager != null) {
-                manager.remove(downloadId);
+            Call call = activeCalls.remove(downloadId);
+            if (call != null) {
+                call.cancel();
             }
             for (DownloadTask t : tasks) {
                 if (t.downloadId == downloadId) {
@@ -225,8 +308,11 @@ public class DownloadHelper {
 
     public static void openDownloadedFile(Context context, DownloadTask task) {
         try {
-            File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "AniStream");
+            File dir = getDownloadDir(context);
             File file = new File(dir, task.fileName);
+            if (!file.exists()) {
+                file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "AniStream/" + task.fileName);
+            }
             if (!file.exists()) {
                 file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), task.fileName);
             }
@@ -304,96 +390,6 @@ public class DownloadHelper {
         dialog.show();
     }
 
-    private static synchronized void startPolling(Context context) {
-        if (isPolling) return;
-        isPolling = true;
-
-        if (pollHandler == null) {
-            pollHandler = new Handler(Looper.getMainLooper());
-        }
-
-        createNotificationChannel(context);
-
-        pollHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                Context appContext = context.getApplicationContext();
-                DownloadManager manager = (DownloadManager) appContext.getSystemService(Context.DOWNLOAD_SERVICE);
-                if (manager == null) {
-                    isPolling = false;
-                    return;
-                }
-
-                boolean anyActive = false;
-
-                for (DownloadTask task : tasks) {
-                    if (task.status == DownloadManager.STATUS_SUCCESSFUL || task.status == DownloadManager.STATUS_FAILED) {
-                        continue;
-                    }
-
-                    DownloadManager.Query q = new DownloadManager.Query();
-                    q.setFilterById(task.downloadId);
-                    Cursor cursor = null;
-                    try {
-                        cursor = manager.query(q);
-                        if (cursor != null && cursor.moveToFirst()) {
-                            int statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS);
-                            int downloadedIndex = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR);
-                            int totalIndex = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES);
-
-                            if (statusIndex != -1) task.status = cursor.getInt(statusIndex);
-                            long downloaded = (downloadedIndex != -1) ? cursor.getLong(downloadedIndex) : 0;
-                            long total = (totalIndex != -1) ? cursor.getLong(totalIndex) : -1;
-
-                            task.bytesDownloaded = downloaded;
-                            if (total > 0) {
-                                task.totalBytes = total;
-                            } else if (task.expectedBytes > 0) {
-                                task.totalBytes = task.expectedBytes;
-                            }
-
-                            if (task.totalBytes > 0) {
-                                int percent = (int) ((downloaded * 100) / task.totalBytes);
-                                task.progressPercent = Math.min(100, Math.max(0, percent));
-                            }
-
-                            double mbDown = downloaded / (1024.0 * 1024.0);
-                            double mbTotal = task.totalBytes / (1024.0 * 1024.0);
-
-                            if (task.status == DownloadManager.STATUS_SUCCESSFUL) {
-                                task.progressPercent = 100;
-                                task.statusText = String.format("Completed • %.1f MB", mbDown > 0 ? mbDown : mbTotal);
-                                notifyComplete(task);
-                                updateSystemNotification(appContext, task);
-                            } else if (task.status == DownloadManager.STATUS_FAILED) {
-                                task.statusText = "Download Failed";
-                                notifyProgress(task);
-                            } else if (task.status == DownloadManager.STATUS_RUNNING || task.status == DownloadManager.STATUS_PENDING) {
-                                anyActive = true;
-                                if (mbTotal > 0) {
-                                    task.statusText = String.format("%.1f MB / %.1f MB (%d%%)", mbDown, mbTotal, task.progressPercent);
-                                } else {
-                                    task.statusText = String.format("%.1f MB downloaded", mbDown);
-                                }
-                                notifyProgress(task);
-                                updateSystemNotification(appContext, task);
-                            }
-                        }
-                    } catch (Exception ignored) {
-                    } finally {
-                        if (cursor != null) cursor.close();
-                    }
-                }
-
-                if (anyActive) {
-                    pollHandler.postDelayed(this, 800);
-                } else {
-                    isPolling = false;
-                }
-            }
-        });
-    }
-
     private static void notifyProgress(DownloadTask task) {
         new Handler(Looper.getMainLooper()).post(() -> {
             for (DownloadProgressListener l : listeners) {
@@ -445,6 +441,10 @@ public class DownloadHelper {
             if (task.status == DownloadManager.STATUS_SUCCESSFUL) {
                 builder.setSmallIcon(android.R.drawable.stat_sys_download_done)
                         .setContentText("✅ Download Complete (" + task.statusText + ")")
+                        .setProgress(0, 0, false);
+            } else if (task.status == DownloadManager.STATUS_FAILED) {
+                builder.setSmallIcon(android.R.drawable.stat_notify_error)
+                        .setContentText("❌ " + task.statusText)
                         .setProgress(0, 0, false);
             } else {
                 builder.setContentText(task.statusText)

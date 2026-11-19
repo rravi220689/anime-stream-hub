@@ -3,6 +3,7 @@ const cors = require('cors');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
 const dotenv = require('dotenv');
 const { spawn } = require('child_process');
 const { Ytdl } = require('@distube/ytdl-core');
@@ -12,6 +13,14 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5050;
 const ytdl = new Ytdl();
+
+// Reusable HTTPS agent with connection pooling and keep-alive
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 50,
+  maxFreeSockets: 10,
+  timeout: 30000
+});
 
 app.use(cors());
 app.use(express.json());
@@ -651,14 +660,20 @@ function extractAnimeEmbedUrl(rawUrl, id, episode = 1) {
 
 // Shared browser headers for AnimeEmbed Cloudflare bypass
 function getAnimeBrowserHeaders(referer = 'https://animeembed.com/') {
+  const ref = (referer && typeof referer === 'string' && referer.startsWith('http')) ? referer : 'https://animeembed.com/';
   return {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    'Referer': referer,
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Referer': ref,
     'Origin': 'https://animeembed.com',
     'Accept': '*/*',
+    'Sec-Ch-Ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Sec-Ch-Ua-Platform': '"Windows"',
     'Sec-Fetch-Dest': 'empty',
     'Sec-Fetch-Mode': 'cors',
-    'Sec-Fetch-Site': 'same-origin'
+    'Sec-Fetch-Site': 'same-origin',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Connection': 'keep-alive'
   };
 }
 
@@ -669,9 +684,10 @@ async function resolveAnimeEmbedSource(embedUrlOrId, epNum = 1) {
 
   const pageResp = await axios.get(embedUrl, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
     },
+    httpsAgent: httpsAgent,
     timeout: 12000
   });
 
@@ -690,6 +706,7 @@ async function resolveAnimeEmbedSource(embedUrlOrId, epNum = 1) {
 
   const srcResp = await axios.get(`https://animeembed.com/internal/source?session=${session}&server=1`, {
     headers: browserHeaders,
+    httpsAgent: httpsAgent,
     timeout: 12000
   });
 
@@ -1024,25 +1041,28 @@ app.get('/api/proxy/hls/master.m3u8', async (req, res) => {
     if (!masterUrl) return res.status(400).send('Missing master url');
 
     let mResp = null;
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 6; attempt++) {
       try {
-        if (attempt > 0) await new Promise(r => setTimeout(r, 800));
+        if (attempt > 0) await new Promise(r => setTimeout(r, 700 + attempt * 200));
         mResp = await axios.get(masterUrl, {
           headers: getAnimeBrowserHeaders(embedUrl),
+          httpsAgent: httpsAgent,
           timeout: 15000
         });
         break;
       } catch (err) {
-        if (attempt === 4) throw err;
+        if (attempt === 5) throw err;
       }
     }
 
-    const rewritten = mResp.data.replace(/(\/media\/[^\r\n]+)/g, (match) => {
-      const fullUrl = 'https://animeembed.com' + match.trim();
+    const rewritten = mResp.data.replace(/((?:https:\/\/animeembed\.com)?\/media\/[^\r\n]+)/g, (match) => {
+      const subPath = match.trim().replace(/^https:\/\/animeembed\.com/, '');
+      const fullUrl = 'https://animeembed.com' + subPath;
       return `http://127.0.0.1:${PORT}/api/proxy/hls/sub.m3u8?url=${encodeURIComponent(fullUrl)}&embed=${encodeURIComponent(embedUrl)}`;
     });
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache');
     res.send(rewritten);
   } catch (err) {
     console.error('HLS master proxy error:', err.message);
@@ -1057,25 +1077,28 @@ app.get('/api/proxy/hls/sub.m3u8', async (req, res) => {
     if (!subUrl) return res.status(400).send('Missing sub playlist url');
 
     let sResp = null;
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 6; attempt++) {
       try {
-        if (attempt > 0) await new Promise(r => setTimeout(r, 800));
+        if (attempt > 0) await new Promise(r => setTimeout(r, 700 + attempt * 200));
         sResp = await axios.get(subUrl, {
           headers: getAnimeBrowserHeaders(embedUrl),
+          httpsAgent: httpsAgent,
           timeout: 15000
         });
         break;
       } catch (err) {
-        if (attempt === 4) throw err;
+        if (attempt === 5) throw err;
       }
     }
 
-    const rewritten = sResp.data.replace(/(\/media\/[^\r\n]+)/g, (match) => {
-      const fullUrl = 'https://animeembed.com' + match.trim();
+    const rewritten = sResp.data.replace(/((?:https:\/\/animeembed\.com)?\/media\/[^\r\n]+)/g, (match) => {
+      const segPath = match.trim().replace(/^https:\/\/animeembed\.com/, '');
+      const fullUrl = 'https://animeembed.com' + segPath;
       return `http://127.0.0.1:${PORT}/api/proxy/hls/segment.ts?url=${encodeURIComponent(fullUrl)}&embed=${encodeURIComponent(embedUrl)}`;
     });
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+    res.setHeader('Cache-Control', 'no-cache');
     res.send(rewritten);
   } catch (err) {
     console.error('HLS sub playlist proxy error:', err.message);
@@ -1090,21 +1113,23 @@ app.get('/api/proxy/hls/segment.ts', async (req, res) => {
     if (!segUrl) return res.status(400).send('Missing segment url');
 
     let segResp = null;
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 6; attempt++) {
       try {
-        if (attempt > 0) await new Promise(r => setTimeout(r, 700));
+        if (attempt > 0) await new Promise(r => setTimeout(r, 600 + attempt * 200));
         segResp = await axios.get(segUrl, {
           headers: getAnimeBrowserHeaders(embedUrl),
+          httpsAgent: httpsAgent,
           responseType: 'arraybuffer',
-          timeout: 20000
+          timeout: 25000
         });
         break;
       } catch (err) {
-        if (attempt === 4) throw err;
+        if (attempt === 5) throw err;
       }
     }
 
     res.setHeader('Content-Type', 'video/mp2t');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
     res.send(Buffer.from(segResp.data));
   } catch (err) {
     console.error('HLS segment proxy error:', err.message);
@@ -1132,9 +1157,15 @@ app.get('/api/download/file', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Type', format === 'mp3' ? 'audio/mpeg' : (format === 'webm' ? 'video/webm' : 'video/mp4'));
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Accept-Ranges', 'none');
 
     if (req.method === 'HEAD') {
       return res.end();
+    }
+
+    // Immediately flush headers so client (OkHttp / DownloadManager) receives HTTP 200 without timeout
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
     }
 
     // 1. ANIME: Stream directly via local HLS Proxy + FFmpeg (remux to MP4/MP3 with AAC stereo + English subtitles)
@@ -1151,10 +1182,13 @@ app.get('/api/download/file', async (req, res) => {
         try {
           const subResp = await axios.get(subVttUrl, {
             headers: getAnimeBrowserHeaders(embedUrl),
+            httpsAgent: httpsAgent,
             timeout: 12000
           });
-          localSubPath = path.join('/tmp', `sub_${Date.now()}_${Math.random().toString(36).slice(2)}.vtt`);
-          fs.writeFileSync(localSubPath, subResp.data);
+          if (subResp.data && typeof subResp.data === 'string' && subResp.data.includes('-->')) {
+            localSubPath = path.join('/tmp', `sub_${Date.now()}_${Math.random().toString(36).slice(2)}.vtt`);
+            fs.writeFileSync(localSubPath, subResp.data);
+          }
         } catch (sErr) {
           console.warn('Anime subtitle fetch warning for muxing:', sErr.message);
         }
@@ -1208,6 +1242,9 @@ app.get('/api/download/file', async (req, res) => {
       }
 
       const ffmpeg = spawn('ffmpeg', ffmpegArgs);
+      ffmpeg.stderr.on('data', (d) => {
+        console.error('[ffmpeg stderr]', d.toString());
+      });
       ffmpeg.on('error', (err) => {
         console.error('Anime ffmpeg stream error:', err.message);
         if (localSubPath) {
@@ -1477,13 +1514,13 @@ app.get('/api/sample-streams', (req, res) => {
 app.get('/api/app/version', (req, res) => {
   res.json({
     success: true,
-    versionCode: 3,
-    versionName: '1.0.2',
-    mobileApkUrl: '/releases/AniStream-Mobile-v1.0.2-release.apk',
-    tvApkUrl: '/releases/AniStream-TV-v1.0.2-release.apk',
+    versionCode: 4,
+    versionName: '1.0.3',
+    mobileApkUrl: '/releases/AniStream-Mobile-v1.0.3-release.apk',
+    tvApkUrl: '/releases/AniStream-TV-v1.0.3-release.apk',
     mobileLatestUrl: '/releases/AniStream-Mobile-latest.apk',
     tvLatestUrl: '/releases/AniStream-TV-latest.apk',
-    releaseNotes: '• Original Video & Synchronized Sound: Bypassed Cloudflare blocks with local HLS Proxy remuxing\n• Subtitles Included: Embedded English subtitles in MP4 and automatic companion .srt download\n• Live Download Percentage: Shows exact MB and percentage completed in notification and app\n• One-Click In-App Upgrades: Seamless background APK updates without losing data',
+    releaseNotes: '• Direct High-Speed Downloader: In-app OkHttp download engine resolves all failed download issues\n• Original Video & AAC Stereo: Full synchronized sound and embedded English subtitles\n• Instant Connection Handshake: Eliminates socket timeouts and pause errors on Android\n• Companion Subtitles (.srt): Auto-downloaded and scanned into system gallery for 100% player compatibility',
     minSupportedVersion: 1
   });
 });
