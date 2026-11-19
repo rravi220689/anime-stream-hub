@@ -1,8 +1,12 @@
 package com.anistream.mobile;
 
+import android.Manifest;
 import android.app.AlertDialog;
 import android.app.PictureInPictureParams;
+import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Build;
@@ -26,6 +30,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
@@ -36,6 +41,7 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
@@ -346,7 +352,18 @@ public class PlayerActivity extends AppCompatActivity {
 
     @OptIn(markerClass = UnstableApi.class)
     private void setupPlayer() {
-        exoPlayer = new ExoPlayer.Builder(this).build();
+        DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                        1500, // minBufferMs (Fast video startup)
+                        50000, // maxBufferMs
+                        1000, // bufferForPlaybackMs
+                        1500  // bufferForPlaybackAfterRebufferMs
+                )
+                .build();
+
+        exoPlayer = new ExoPlayer.Builder(this)
+                .setLoadControl(loadControl)
+                .build();
         exoPlayerView.setPlayer(exoPlayer);
 
         exoPlayer.addListener(new Player.Listener() {
@@ -362,7 +379,10 @@ public class PlayerActivity extends AppCompatActivity {
             @Override
             public void onPlayerError(PlaybackException error) {
                 // Fallback to WebView if ExoPlayer fails to stream directly
-                fallbackToWebView(item.videoUrl);
+                String fallbackUrl = "anime".equals(item.type)
+                        ? "https://animeembed.com/embed/ani/" + item.id + "/" + currentEpisode + "?accent=6366f1"
+                        : (item.videoUrl != null ? item.videoUrl : "");
+                fallbackToWebView(fallbackUrl);
             }
         });
 
@@ -450,13 +470,42 @@ public class PlayerActivity extends AppCompatActivity {
             exoPlayer.setMediaItem(mediaItem);
             exoPlayer.prepare();
             exoPlayer.play();
+        } else if ("anime".equals(item.type)) {
+            // Fast native loading with ExoPlayer!
+            String fallbackEmbed = "https://animeembed.com/embed/ani/" + item.id + "/" + currentEpisode + "?accent=6366f1";
+            apiClient.resolveAnimeStream(item.id, currentEpisode, new ApiClient.ApiCallback<String>() {
+                @Override
+                public void onSuccess(String streamUrl) {
+                    runOnUiThread(() -> {
+                        try {
+                            playerWebView.setVisibility(View.GONE);
+                            exoPlayerView.setVisibility(View.VISIBLE);
+                            String fullUrl = streamUrl.startsWith("http") ? streamUrl : (apiClient.getServerUrl() + (streamUrl.startsWith("/") ? "" : "/") + streamUrl);
+                            MediaItem mediaItem = MediaItem.fromUri(Uri.parse(fullUrl));
+                            exoPlayer.setMediaItem(mediaItem);
+                            exoPlayer.prepare();
+                            exoPlayer.play();
+                        } catch (Exception e) {
+                            fallbackToWebView(fallbackEmbed);
+                        }
+                    });
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    runOnUiThread(() -> {
+                        // Fallback gracefully to webview if server resolution fails
+                        fallbackToWebView(fallbackEmbed);
+                    });
+                }
+            });
         } else {
             // For anime episodes or YouTube, use WebView player or direct stream
             String embedUrl;
             if ("youtube".equals(item.type)) {
                 embedUrl = "https://www.youtube-nocookie.com/embed/" + item.id + "?autoplay=1&enablejsapi=1";
             } else {
-                embedUrl = "https://animeembed.com/embed/ani/" + item.id + "/" + currentEpisode + "?accent=6366f1";
+                embedUrl = item.videoUrl != null ? item.videoUrl : "";
             }
             fallbackToWebView(embedUrl);
         }
@@ -510,7 +559,7 @@ public class PlayerActivity extends AppCompatActivity {
                     loading.setVisibility(View.GONE);
                     DownloadOptionsAdapter optAdapter = new DownloadOptionsAdapter(PlayerActivity.this, option -> {
                         String dlUrl = option.directUrl != null ? option.directUrl : option.externalUrl;
-                        DownloadHelper.startDownload(PlayerActivity.this, dlUrl, option.subtitleUrl, downloadTitle, option.quality, option.format, option.size);
+                        showDownloadChoiceDialog(downloadTitle, dlUrl, option);
                         dialog.dismiss();
                     });
                     optAdapter.setOptions(result);
@@ -528,6 +577,95 @@ public class PlayerActivity extends AppCompatActivity {
         });
 
         dialog.show();
+    }
+
+    private Runnable pendingDownloadAction = null;
+    private static final int STORAGE_PERMISSION_CODE = 2002;
+
+    private void showDownloadChoiceDialog(String downloadTitle, String dlUrl, DownloadOption option) {
+        String serverUrl = apiClient.getServerUrl();
+        String fullDlUrl = dlUrl.startsWith("http") ? dlUrl : (serverUrl + (dlUrl.startsWith("/") ? "" : "/") + dlUrl);
+
+        CharSequence[] choices = new CharSequence[]{
+                "⚡ Fast In-App Download (Direct to Downloads/AniStream)",
+                "🌐 Download via Browser / External Downloader (Chrome, 1DM, ADM)",
+                "📋 Copy Direct Download Link"
+        };
+
+        new AlertDialog.Builder(this)
+                .setTitle("Select Download Mode (" + option.quality + ")")
+                .setItems(choices, (d, which) -> {
+                    if (which == 0) {
+                        // 1. In-App Download with permission check
+                        checkAndRequestStoragePermissions(() -> {
+                            DownloadHelper.startDownload(PlayerActivity.this, dlUrl, option.subtitleUrl, downloadTitle, option.quality, option.format, option.size);
+                        });
+                    } else if (which == 1) {
+                        // 2. Browser / External Downloader
+                        try {
+                            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(fullDlUrl));
+                            browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(Intent.createChooser(browserIntent, "Download with..."));
+                            Toast.makeText(PlayerActivity.this, "Opening downloader...", Toast.LENGTH_SHORT).show();
+                        } catch (Exception e) {
+                            Toast.makeText(PlayerActivity.this, "Could not open browser: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        }
+                    } else if (which == 2) {
+                        // 3. Copy direct link
+                        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                        android.content.ClipData clip = android.content.ClipData.newPlainText("Download Link", fullDlUrl);
+                        if (clipboard != null) {
+                            clipboard.setPrimaryClip(clip);
+                            Toast.makeText(PlayerActivity.this, "Download link copied to clipboard!", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void checkAndRequestStoragePermissions(Runnable onGranted) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            java.util.List<String> perms = new java.util.ArrayList<>();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    perms.add(Manifest.permission.POST_NOTIFICATIONS);
+                }
+                if (checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
+                    perms.add(Manifest.permission.READ_MEDIA_VIDEO);
+                }
+                if (checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    perms.add(Manifest.permission.READ_MEDIA_AUDIO);
+                }
+            } else {
+                if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    perms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+                }
+                if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    perms.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+                }
+            }
+
+            if (!perms.isEmpty()) {
+                pendingDownloadAction = onGranted;
+                requestPermissions(perms.toArray(new String[0]), STORAGE_PERMISSION_CODE);
+                return;
+            }
+        }
+        if (onGranted != null) {
+            onGranted.run();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == STORAGE_PERMISSION_CODE) {
+            if (pendingDownloadAction != null) {
+                pendingDownloadAction.run();
+                pendingDownloadAction = null;
+            }
+        }
     }
 
     private void showServerSettingsDialog() {

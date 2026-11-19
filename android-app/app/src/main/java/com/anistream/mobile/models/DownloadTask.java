@@ -14,6 +14,7 @@ public class DownloadTask {
     public String statusText;
     public boolean isAudio;
     public String localUri;
+    public String mediaUri;
     public long timestamp;
 
     public DownloadTask(long downloadId, String title, String quality, String format, String fileName, long expectedBytes) {

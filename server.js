@@ -571,6 +571,31 @@ app.get('/api/anime/details/:id', async (req, res) => {
   }
 });
 
+// 6b. Stream resolver endpoint for native ExoPlayer playback (fast sub-second loading)
+app.get('/api/anime/stream', async (req, res) => {
+  try {
+    const id = req.query.id;
+    const episode = req.query.episode || 1;
+    if (!id) return res.status(400).json({ success: false, message: 'Missing anime id' });
+    const resolved = await resolveAnimeEmbedSource(id, episode);
+    const host = req.headers.host || `127.0.0.1:${PORT}`;
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const baseUrl = `${proto}://${host}`;
+    const proxyStreamUrl = `${baseUrl}/api/proxy/hls/master.m3u8?url=${encodeURIComponent(resolved.masterM3u8Url)}&embed=${encodeURIComponent(resolved.embedUrl)}`;
+    res.json({
+      success: true,
+      streamUrl: proxyStreamUrl,
+      rawMasterUrl: resolved.masterM3u8Url,
+      subtitleUrl: resolved.subtitleUrl,
+      tracks: resolved.tracks,
+      embedUrl: resolved.embedUrl
+    });
+  } catch (err) {
+    console.error('Anime stream resolution failed:', err.message);
+    res.status(500).json({ success: false, message: 'Stream resolution failed', error: err.message });
+  }
+});
+
 // 7. YouTube Real-Time Search for Cartoons & Videos
 app.get('/api/youtube/search', async (req, res) => {
   try {
@@ -1055,10 +1080,14 @@ app.get('/api/proxy/hls/master.m3u8', async (req, res) => {
       }
     }
 
+    const host = req.headers.host || `127.0.0.1:${PORT}`;
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const baseUrl = `${proto}://${host}`;
+
     const rewritten = mResp.data.replace(/((?:https:\/\/animeembed\.com)?\/media\/[^\r\n]+)/g, (match) => {
       const subPath = match.trim().replace(/^https:\/\/animeembed\.com/, '');
       const fullUrl = 'https://animeembed.com' + subPath;
-      return `http://127.0.0.1:${PORT}/api/proxy/hls/sub.m3u8?url=${encodeURIComponent(fullUrl)}&embed=${encodeURIComponent(embedUrl)}`;
+      return `${baseUrl}/api/proxy/hls/sub.m3u8?url=${encodeURIComponent(fullUrl)}&embed=${encodeURIComponent(embedUrl)}`;
     });
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
@@ -1091,10 +1120,14 @@ app.get('/api/proxy/hls/sub.m3u8', async (req, res) => {
       }
     }
 
+    const host = req.headers.host || `127.0.0.1:${PORT}`;
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const baseUrl = `${proto}://${host}`;
+
     const rewritten = sResp.data.replace(/((?:https:\/\/animeembed\.com)?\/media\/[^\r\n]+)/g, (match) => {
       const segPath = match.trim().replace(/^https:\/\/animeembed\.com/, '');
       const fullUrl = 'https://animeembed.com' + segPath;
-      return `http://127.0.0.1:${PORT}/api/proxy/hls/segment.ts?url=${encodeURIComponent(fullUrl)}&embed=${encodeURIComponent(embedUrl)}`;
+      return `${baseUrl}/api/proxy/hls/segment.ts?url=${encodeURIComponent(fullUrl)}&embed=${encodeURIComponent(embedUrl)}`;
     });
 
     res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
@@ -1514,13 +1547,13 @@ app.get('/api/sample-streams', (req, res) => {
 app.get('/api/app/version', (req, res) => {
   res.json({
     success: true,
-    versionCode: 4,
-    versionName: '1.0.3',
-    mobileApkUrl: '/releases/AniStream-Mobile-v1.0.3-release.apk',
-    tvApkUrl: '/releases/AniStream-TV-v1.0.3-release.apk',
+    versionCode: 5,
+    versionName: '1.0.4',
+    mobileApkUrl: '/releases/AniStream-Mobile-v1.0.4-release.apk',
+    tvApkUrl: '/releases/AniStream-TV-v1.0.4-release.apk',
     mobileLatestUrl: '/releases/AniStream-Mobile-latest.apk',
     tvLatestUrl: '/releases/AniStream-TV-latest.apk',
-    releaseNotes: '• Direct High-Speed Downloader: In-app OkHttp download engine resolves all failed download issues\n• Original Video & AAC Stereo: Full synchronized sound and embedded English subtitles\n• Instant Connection Handshake: Eliminates socket timeouts and pause errors on Android\n• Companion Subtitles (.srt): Auto-downloaded and scanned into system gallery for 100% player compatibility',
+    releaseNotes: '• Fix Android 11-14 Scoped Storage permission denials (MediaStore direct save to Downloads/AniStream)\n• Native Hardware-Accelerated ExoPlayer with fast sub-second startup buffer (replaces slow WebView)\n• Dual Download System: In-App Direct Download or Browser/External Downloader (Chrome, 1DM, ADM)\n• Full Video + AAC Stereo Sound + Synchronized English Subtitles',
     minSupportedVersion: 1
   });
 });

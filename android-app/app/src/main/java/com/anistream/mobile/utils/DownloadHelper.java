@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.media.MediaScannerConnection;
@@ -13,6 +14,7 @@ import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.MediaStore;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.TextView;
@@ -29,6 +31,7 @@ import com.anistream.mobile.models.DownloadTask;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -103,26 +106,6 @@ public class DownloadHelper {
         return tasks.isEmpty() ? null : tasks.get(0);
     }
 
-    public static File getDownloadDir(Context context) {
-        try {
-            File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "AniStream");
-            if (!pubDir.exists()) {
-                pubDir.mkdirs();
-            }
-            if (pubDir.exists() && pubDir.canWrite()) {
-                return pubDir;
-            }
-        } catch (Exception ignored) {}
-
-        File appExt = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-        if (appExt != null) {
-            File sub = new File(appExt, "AniStream");
-            if (!sub.exists()) sub.mkdirs();
-            return sub;
-        }
-        return context.getFilesDir();
-    }
-
     public static void startDownload(Context context, String downloadUrl, String title, String quality, String format) {
         startDownload(context, downloadUrl, null, title, quality, format, null);
     }
@@ -183,9 +166,14 @@ public class DownloadHelper {
     }
 
     private static void executeDownload(Context context, DownloadTask task, String url) {
-        File dir = getDownloadDir(context);
-        File targetFile = new File(dir, task.fileName);
         Call call = null;
+        OutputStream fos = null;
+        Uri mediaStoreUri = null;
+        File localFallbackFile = null;
+
+        boolean isAudio = task.isAudio;
+        boolean isSubOnly = "srt".equalsIgnoreCase(task.format) || "vtt".equalsIgnoreCase(task.format);
+        String mimeType = isAudio ? "audio/mpeg" : (isSubOnly ? "text/plain" : "video/mp4");
 
         try {
             task.status = DownloadManager.STATUS_RUNNING;
@@ -193,9 +181,49 @@ public class DownloadHelper {
             notifyProgress(task);
             updateSystemNotification(context, task);
 
+            // Establish destination OutputStream:
+            // Strategy 1 (Android 10+ / API 29+): MediaStore.Downloads (Public Downloads/AniStream, zero permission errors!)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                try {
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Downloads.DISPLAY_NAME, task.fileName);
+                    values.put(MediaStore.Downloads.MIME_TYPE, mimeType);
+                    values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/AniStream");
+                    values.put(MediaStore.Downloads.IS_PENDING, 1);
+
+                    mediaStoreUri = context.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                    if (mediaStoreUri != null) {
+                        fos = context.getContentResolver().openOutputStream(mediaStoreUri);
+                        task.mediaUri = mediaStoreUri.toString();
+                    }
+                } catch (Exception msErr) {
+                    android.util.Log.w("DownloadHelper", "MediaStore insert failed: " + msErr.getMessage());
+                }
+            }
+
+            // Strategy 2: Standard public Downloads directory (Android 9 and below or fallback)
+            if (fos == null) {
+                try {
+                    File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "AniStream");
+                    if (!pubDir.exists()) pubDir.mkdirs();
+                    localFallbackFile = new File(pubDir, task.fileName);
+                    fos = new FileOutputStream(localFallbackFile);
+                    task.localUri = localFallbackFile.getAbsolutePath();
+                } catch (Exception pubErr) {
+                    // Strategy 3: App external files directory (always writable!)
+                    File appDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                    if (appDir == null) appDir = context.getFilesDir();
+                    File sub = new File(appDir, "AniStream");
+                    if (!sub.exists()) sub.mkdirs();
+                    localFallbackFile = new File(sub, task.fileName);
+                    fos = new FileOutputStream(localFallbackFile);
+                    task.localUri = localFallbackFile.getAbsolutePath();
+                }
+            }
+
             Request request = new Request.Builder()
                     .url(url)
-                    .header("User-Agent", "AniStream-Mobile/1.0.3")
+                    .header("User-Agent", "AniStream-Mobile/1.0.4")
                     .build();
 
             call = dlClient.newCall(request);
@@ -207,6 +235,7 @@ public class DownloadHelper {
                 task.statusText = "Server error HTTP " + response.code();
                 notifyProgress(task);
                 updateSystemNotification(context, task);
+                if (fos != null) fos.close();
                 return;
             }
 
@@ -216,6 +245,7 @@ public class DownloadHelper {
                 task.statusText = "Empty response body from server";
                 notifyProgress(task);
                 updateSystemNotification(context, task);
+                if (fos != null) fos.close();
                 return;
             }
 
@@ -227,7 +257,6 @@ public class DownloadHelper {
             }
 
             InputStream is = body.byteStream();
-            FileOutputStream fos = new FileOutputStream(targetFile);
             byte[] buffer = new byte[32768];
             int read;
             long downloaded = 0;
@@ -260,28 +289,41 @@ public class DownloadHelper {
             fos.close();
             is.close();
 
+            // Mark completed in MediaStore or MediaScanner
+            if (mediaStoreUri != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContentValues completeValues = new ContentValues();
+                completeValues.put(MediaStore.Downloads.IS_PENDING, 0);
+                context.getContentResolver().update(mediaStoreUri, completeValues, null, null);
+            } else if (localFallbackFile != null && localFallbackFile.exists()) {
+                MediaScannerConnection.scanFile(context, new String[]{ localFallbackFile.getAbsolutePath() }, null, null);
+            }
+
             task.status = DownloadManager.STATUS_SUCCESSFUL;
             task.progressPercent = 100;
             task.bytesDownloaded = downloaded;
-            task.localUri = targetFile.getAbsolutePath();
             double mbFinal = downloaded / (1024.0 * 1024.0);
             task.statusText = String.format("Completed • %.1f MB", mbFinal);
 
             notifyComplete(task);
             updateSystemNotification(context, task);
 
-            // Trigger system media scanner so the video/audio appears immediately in Gallery and Media Players
-            MediaScannerConnection.scanFile(context, new String[]{ targetFile.getAbsolutePath() }, null, null);
-
         } catch (Exception e) {
             boolean isCancelled = call != null && call.isCanceled();
             task.status = DownloadManager.STATUS_FAILED;
             task.statusText = isCancelled ? "Cancelled" : ("Failed: " + e.getMessage());
+
             try {
-                if (targetFile.exists() && task.bytesDownloaded < 50000) {
-                    targetFile.delete();
+                if (fos != null) fos.close();
+            } catch (Exception ignored) {}
+
+            try {
+                if (mediaStoreUri != null && task.bytesDownloaded < 50000) {
+                    context.getContentResolver().delete(mediaStoreUri, null, null);
+                } else if (localFallbackFile != null && localFallbackFile.exists() && task.bytesDownloaded < 50000) {
+                    localFallbackFile.delete();
                 }
             } catch (Exception ignored) {}
+
             notifyProgress(task);
             updateSystemNotification(context, task);
         } finally {
@@ -308,30 +350,41 @@ public class DownloadHelper {
 
     public static void openDownloadedFile(Context context, DownloadTask task) {
         try {
-            File dir = getDownloadDir(context);
-            File file = new File(dir, task.fileName);
-            if (!file.exists()) {
-                file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "AniStream/" + task.fileName);
-            }
-            if (!file.exists()) {
-                file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), task.fileName);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            String mime = task.isAudio ? "audio/*" : ("srt".equalsIgnoreCase(task.format) ? "text/plain" : "video/*");
+            Uri playUri = null;
+
+            if (task.mediaUri != null && !task.mediaUri.isEmpty()) {
+                playUri = Uri.parse(task.mediaUri);
+            } else if (task.localUri != null && !task.localUri.isEmpty()) {
+                File f = new File(task.localUri);
+                if (f.exists()) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        playUri = FileProvider.getUriForFile(context, context.getPackageName() + ".provider", f);
+                    } else {
+                        playUri = Uri.fromFile(f);
+                    }
+                }
             }
 
-            if (!file.exists()) {
+            if (playUri == null) {
+                File pubFile = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "AniStream/" + task.fileName);
+                if (pubFile.exists()) {
+                    playUri = FileProvider.getUriForFile(context, context.getPackageName() + ".provider", pubFile);
+                } else {
+                    File appFile = new File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "AniStream/" + task.fileName);
+                    if (appFile.exists()) {
+                        playUri = FileProvider.getUriForFile(context, context.getPackageName() + ".provider", appFile);
+                    }
+                }
+            }
+
+            if (playUri == null) {
                 Toast.makeText(context, "File not found on storage: " + task.fileName, Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            Uri uri;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                uri = FileProvider.getUriForFile(context, context.getPackageName() + ".provider", file);
-            } else {
-                uri = Uri.fromFile(file);
-            }
-
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            String mime = task.isAudio ? "audio/*" : ("srt".equalsIgnoreCase(task.format) ? "text/plain" : "video/*");
-            intent.setDataAndType(uri, mime);
+            intent.setDataAndType(playUri, mime);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(Intent.createChooser(intent, "Open with"));
         } catch (Exception e) {

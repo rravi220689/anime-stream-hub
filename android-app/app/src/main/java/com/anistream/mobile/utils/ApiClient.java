@@ -317,6 +317,42 @@ public class ApiClient {
         });
     }
 
+    // 4b. Direct Native Anime HLS Stream Resolver (Fast loading with ExoPlayer)
+    public void resolveAnimeStream(String id, int episode, ApiCallback<String> callback) {
+        String encId = "";
+        try {
+            encId = URLEncoder.encode(id != null ? id : "", StandardCharsets.UTF_8.name());
+        } catch (Exception ignored) {}
+
+        String url = getServerUrl() + "/api/anime/stream?id=" + encId + "&episode=" + episode;
+        Request request = new Request.Builder().url(url).build();
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                callback.onError(e);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    callback.onError(new IOException("Server HTTP " + response.code()));
+                    return;
+                }
+                try {
+                    String json = response.body().string();
+                    JsonObject root = gson.fromJson(json, JsonObject.class);
+                    if (root.has("streamUrl") && !root.get("streamUrl").isJsonNull()) {
+                        callback.onSuccess(root.get("streamUrl").getAsString());
+                    } else {
+                        callback.onError(new IOException("No stream URL in server response"));
+                    }
+                } catch (Exception e) {
+                    callback.onError(e);
+                }
+            }
+        });
+    }
+
     // 5. Test Server Connection
     public void testServerConnection(String targetUrl, ApiCallback<Boolean> callback) {
         if (targetUrl == null || targetUrl.trim().isEmpty()) {
