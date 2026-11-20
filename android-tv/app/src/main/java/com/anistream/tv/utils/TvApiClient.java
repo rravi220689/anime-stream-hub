@@ -264,4 +264,49 @@ public class TvApiClient {
             return null;
         }
     }
+
+    public static class StreamInfo {
+        public String streamUrl;
+        public String subtitleUrl;
+    }
+
+    public void resolveAnimeStream(String id, int episode, ApiCallback<StreamInfo> callback) {
+        String encId = "";
+        try {
+            encId = java.net.URLEncoder.encode(id != null ? id : "", java.nio.charset.StandardCharsets.UTF_8.name());
+        } catch (Exception ignored) {}
+
+        String url = getServerUrl() + "/api/anime/stream?id=" + encId + "&episode=" + episode;
+        Request request = new Request.Builder().url(url).build();
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                callback.onError(e);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    callback.onError(new IOException("Server HTTP " + response.code()));
+                    return;
+                }
+                try {
+                    String json = response.body().string();
+                    JsonObject root = gson.fromJson(json, JsonObject.class);
+                    if (root.has("streamUrl") && !root.get("streamUrl").isJsonNull()) {
+                        StreamInfo info = new StreamInfo();
+                        info.streamUrl = root.get("streamUrl").getAsString();
+                        if (root.has("subtitleUrl") && !root.get("subtitleUrl").isJsonNull()) {
+                            info.subtitleUrl = root.get("subtitleUrl").getAsString();
+                        }
+                        callback.onSuccess(info);
+                    } else {
+                        callback.onError(new IOException("No stream URL in server response"));
+                    }
+                } catch (Exception e) {
+                    callback.onError(e);
+                }
+            }
+        });
+    }
 }

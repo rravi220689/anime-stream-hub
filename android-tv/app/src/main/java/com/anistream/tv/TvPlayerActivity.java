@@ -22,10 +22,14 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
@@ -193,8 +197,28 @@ public class TvPlayerActivity extends AppCompatActivity {
 
     @OptIn(markerClass = UnstableApi.class)
     private void setupPlayer() {
-        exoPlayer = new ExoPlayer.Builder(this).build();
+        DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
+                .setBufferDurationsMs(1500, 50000, 1000, 1500)
+                .build();
+
+        exoPlayer = new ExoPlayer.Builder(this)
+                .setLoadControl(loadControl)
+                .build();
         tvExoPlayer.setPlayer(exoPlayer);
+
+        AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .build();
+        exoPlayer.setAudioAttributes(audioAttributes, true);
+        exoPlayer.setVolume(1.0f);
+
+        exoPlayer.setTrackSelectionParameters(
+                exoPlayer.getTrackSelectionParameters().buildUpon()
+                        .setPreferredTextLanguage("en")
+                        .setSelectUndeterminedTextLanguage(true)
+                        .build()
+        );
 
         exoPlayer.addListener(new Player.Listener() {
             @Override
@@ -241,6 +265,51 @@ public class TvPlayerActivity extends AppCompatActivity {
             exoPlayer.setMediaItem(mediaItem);
             exoPlayer.prepare();
             exoPlayer.play();
+        } else if ("anime".equals(item.type)) {
+            TvApiClient apiClient = TvApiClient.getInstance(this);
+            apiClient.resolveAnimeStream(item.id, currentEpisode, new TvApiClient.ApiCallback<TvApiClient.StreamInfo>() {
+                @Override
+                public void onSuccess(TvApiClient.StreamInfo streamInfo) {
+                    runOnUiThread(() -> {
+                        try {
+                            tvPlayerWebView.setVisibility(View.GONE);
+                            tvExoPlayer.setVisibility(View.VISIBLE);
+                            String fullUrl = streamInfo.streamUrl.startsWith("http")
+                                    ? streamInfo.streamUrl
+                                    : (apiClient.getServerUrl() + (streamInfo.streamUrl.startsWith("/") ? "" : "/") + streamInfo.streamUrl);
+
+                            MediaItem.Builder mediaItemBuilder = new MediaItem.Builder()
+                                    .setUri(Uri.parse(fullUrl));
+
+                            if (streamInfo.subtitleUrl != null && !streamInfo.subtitleUrl.isEmpty()) {
+                                String fullSubUrl = streamInfo.subtitleUrl.startsWith("http")
+                                        ? streamInfo.subtitleUrl
+                                        : (apiClient.getServerUrl() + (streamInfo.subtitleUrl.startsWith("/") ? "" : "/") + streamInfo.subtitleUrl);
+
+                                MediaItem.SubtitleConfiguration subConfig = new MediaItem.SubtitleConfiguration.Builder(Uri.parse(fullSubUrl))
+                                        .setMimeType(MimeTypes.TEXT_VTT)
+                                        .setLanguage("en")
+                                        .setLabel("English")
+                                        .setSelectionFlags(C.SELECTION_FLAG_DEFAULT | C.SELECTION_FLAG_FORCED)
+                                        .build();
+                                mediaItemBuilder.setSubtitleConfigurations(java.util.Collections.singletonList(subConfig));
+                            }
+
+                            MediaItem mediaItem = mediaItemBuilder.build();
+                            exoPlayer.setMediaItem(mediaItem);
+                            exoPlayer.prepare();
+                            exoPlayer.play();
+                        } catch (Exception e) {
+                            fallbackToWebView();
+                        }
+                    });
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    runOnUiThread(() -> fallbackToWebView());
+                }
+            });
         } else {
             fallbackToWebView();
         }

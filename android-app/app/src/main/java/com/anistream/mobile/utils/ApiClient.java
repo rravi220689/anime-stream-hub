@@ -317,8 +317,13 @@ public class ApiClient {
         });
     }
 
+    public static class StreamInfo {
+        public String streamUrl;
+        public String subtitleUrl;
+    }
+
     // 4b. Direct Native Anime HLS Stream Resolver (Fast loading with ExoPlayer)
-    public void resolveAnimeStream(String id, int episode, ApiCallback<String> callback) {
+    public void resolveAnimeStream(String id, int episode, ApiCallback<StreamInfo> callback) {
         String encId = "";
         try {
             encId = URLEncoder.encode(id != null ? id : "", StandardCharsets.UTF_8.name());
@@ -342,7 +347,12 @@ public class ApiClient {
                     String json = response.body().string();
                     JsonObject root = gson.fromJson(json, JsonObject.class);
                     if (root.has("streamUrl") && !root.get("streamUrl").isJsonNull()) {
-                        callback.onSuccess(root.get("streamUrl").getAsString());
+                        StreamInfo info = new StreamInfo();
+                        info.streamUrl = root.get("streamUrl").getAsString();
+                        if (root.has("subtitleUrl") && !root.get("subtitleUrl").isJsonNull()) {
+                            info.subtitleUrl = root.get("subtitleUrl").getAsString();
+                        }
+                        callback.onSuccess(info);
                     } else {
                         callback.onError(new IOException("No stream URL in server response"));
                     }

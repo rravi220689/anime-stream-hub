@@ -26,6 +26,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.anistream.mobile.R;
 import com.anistream.mobile.adapters.DownloadsAdapter;
+import com.anistream.mobile.models.AnimeItem;
 import com.anistream.mobile.models.DownloadTask;
 
 import java.io.File;
@@ -141,24 +142,9 @@ public class DownloadHelper {
             Toast.makeText(appContext, (isSubOnly ? "Downloading Subtitles: " : "Starting download: ") + fileName, Toast.LENGTH_SHORT).show();
 
             // 1. Submit main video / audio / subtitle download to background executor
+            // Subtitles and AAC stereo sound are already integrated inside the video download
             final String finalDownloadUrl = downloadUrl;
             downloadExecutor.submit(() -> executeDownload(appContext, task, finalDownloadUrl));
-
-            // 2. Auto-download companion English subtitle (.srt) file into the same folder
-            // Guarantees external subtitle detection on all video players (Samsung Gallery, Google Photos, Files, VLC)
-            if (subtitleUrl != null && !subtitleUrl.trim().isEmpty() && !isAudio && !isSubOnly) {
-                try {
-                    String srtUrl = subtitleUrl.startsWith("/") ? (serverUrl + subtitleUrl) : subtitleUrl;
-                    String srtFileName = cleanTitle + "_" + quality.replaceAll("[^a-zA-Z0-9]", "") + ".srt";
-                    long srtDlId = downloadId + 1;
-                    DownloadTask srtTask = new DownloadTask(srtDlId, title + " Subtitles", "ENG SUB", "srt", srtFileName, 45000);
-                    tasks.add(0, srtTask);
-                    notifyDownloadsChanged();
-                    downloadExecutor.submit(() -> executeDownload(appContext, srtTask, srtUrl));
-                } catch (Exception subErr) {
-                    android.util.Log.w("DownloadHelper", "Companion subtitle enqueue error: " + subErr.getMessage());
-                }
-            }
 
         } catch (Exception e) {
             Toast.makeText(context, "Could not start download: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -384,6 +370,26 @@ public class DownloadHelper {
                 return;
             }
 
+            // 1. Play directly in AniStream native ExoPlayer for video/audio
+            if (!"srt".equalsIgnoreCase(task.format) && !"vtt".equalsIgnoreCase(task.format)) {
+                try {
+                    AnimeItem offlineItem = new AnimeItem();
+                    offlineItem.id = String.valueOf(task.downloadId);
+                    offlineItem.title = task.title;
+                    offlineItem.videoUrl = playUri.toString();
+                    offlineItem.type = "direct";
+                    offlineItem.duration = task.quality != null ? task.quality : "Downloaded";
+                    offlineItem.description = "Offline video in Downloads/AniStream/" + task.fileName;
+
+                    Intent playerIntent = new Intent(context, com.anistream.mobile.PlayerActivity.class);
+                    playerIntent.putExtra("item", offlineItem);
+                    playerIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+                    context.startActivity(playerIntent);
+                    return;
+                } catch (Exception ignored) {}
+            }
+
+            // 2. Fallback to external chooser
             intent.setDataAndType(playUri, mime);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(Intent.createChooser(intent, "Open with"));

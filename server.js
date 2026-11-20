@@ -582,11 +582,14 @@ app.get('/api/anime/stream', async (req, res) => {
     const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
     const baseUrl = `${proto}://${host}`;
     const proxyStreamUrl = `${baseUrl}/api/proxy/hls/master.m3u8?url=${encodeURIComponent(resolved.masterM3u8Url)}&embed=${encodeURIComponent(resolved.embedUrl)}`;
+    const proxySubUrl = resolved.subtitleUrl
+      ? `${baseUrl}/api/download/subtitle?subUrl=${encodeURIComponent(resolved.subtitleUrl)}&embed=${encodeURIComponent(resolved.embedUrl)}&format=vtt`
+      : null;
     res.json({
       success: true,
       streamUrl: proxyStreamUrl,
       rawMasterUrl: resolved.masterM3u8Url,
-      subtitleUrl: resolved.subtitleUrl,
+      subtitleUrl: proxySubUrl,
       tracks: resolved.tracks,
       embedUrl: resolved.embedUrl
     });
@@ -809,14 +812,15 @@ app.get('/api/download/subtitle', async (req, res) => {
     }
 
     const browserHeaders = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      'Referer': embedUrl || 'https://animeembed.com/',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Referer': req.query.embed || embedUrl || 'https://animeembed.com/',
       'Origin': 'https://animeembed.com',
       'Accept': '*/*'
     };
 
     const subResp = await axios.get(subtitleMediaUrl, {
       headers: browserHeaders,
+      httpsAgent: httpsAgent,
       timeout: 15000,
       responseType: 'text'
     });
@@ -824,6 +828,7 @@ app.get('/api/download/subtitle', async (req, res) => {
     const cleanName = title.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').slice(0, 80) || 'subtitles';
     const filename = `${cleanName}.${reqFormat}`;
 
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Type', reqFormat === 'srt' ? 'application/x-subrip; charset=utf-8' : 'text/vtt; charset=utf-8');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -1253,9 +1258,12 @@ app.get('/api/download/file', async (req, res) => {
             '-c:a', 'aac',
             '-b:a', '192k',
             '-ac', '2',
+            '-af', 'aresample=async=1000',
+            '-disposition:a:0', 'default',
             '-c:s', 'mov_text',
             '-metadata:s:s:0', 'language=eng',
-            '-disposition:s:0', 'default'
+            '-metadata:s:s:0', 'handler_name=English',
+            '-disposition:s:0', 'default+forced'
           );
         } else {
           ffmpegArgs.push(
@@ -1264,7 +1272,9 @@ app.get('/api/download/file', async (req, res) => {
             '-c:v', 'copy',
             '-c:a', 'aac',
             '-b:a', '192k',
-            '-ac', '2'
+            '-ac', '2',
+            '-af', 'aresample=async=1000',
+            '-disposition:a:0', 'default'
           );
         }
         ffmpegArgs.push(
@@ -1547,13 +1557,13 @@ app.get('/api/sample-streams', (req, res) => {
 app.get('/api/app/version', (req, res) => {
   res.json({
     success: true,
-    versionCode: 5,
-    versionName: '1.0.4',
-    mobileApkUrl: '/releases/AniStream-Mobile-v1.0.4-release.apk',
-    tvApkUrl: '/releases/AniStream-TV-v1.0.4-release.apk',
+    versionCode: 6,
+    versionName: '1.0.5',
+    mobileApkUrl: '/releases/AniStream-Mobile-v1.0.5-release.apk',
+    tvApkUrl: '/releases/AniStream-TV-v1.0.5-release.apk',
     mobileLatestUrl: '/releases/AniStream-Mobile-latest.apk',
     tvLatestUrl: '/releases/AniStream-TV-latest.apk',
-    releaseNotes: '• Fix Android 11-14 Scoped Storage permission denials (MediaStore direct save to Downloads/AniStream)\n• Native Hardware-Accelerated ExoPlayer with fast sub-second startup buffer (replaces slow WebView)\n• Dual Download System: In-App Direct Download or Browser/External Downloader (Chrome, 1DM, ADM)\n• Full Video + AAC Stereo Sound + Synchronized English Subtitles',
+    releaseNotes: '• Fix Subtitles & Audio in Online Streaming: Proxied WebVTT subtitles with high-visibility captions and hardware media audio focus\n• Unified Video Downloader: Subtitles and synchronized AAC stereo sound included directly inside the video (no separate subtitle download)\n• Integrated Offline Player: Tapping downloaded videos plays instantly in AniStream native ExoPlayer with subtitles\n• TV App Native ExoPlayer: High-speed native player enabled for Android TV with full remote D-pad controls',
     minSupportedVersion: 1
   });
 });

@@ -8,12 +8,14 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Rational;
+import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
@@ -37,16 +39,22 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.core.widget.NestedScrollView;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.AspectRatioFrameLayout;
+import androidx.media3.ui.CaptionStyleCompat;
 import androidx.media3.ui.PlayerView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
+import java.util.Collections;
 
 import com.anistream.mobile.adapters.DownloadOptionsAdapter;
 import com.anistream.mobile.adapters.EpisodeAdapter;
@@ -366,6 +374,36 @@ public class PlayerActivity extends AppCompatActivity {
                 .build();
         exoPlayerView.setPlayer(exoPlayer);
 
+        // Hardware audio attributes for clean, loud sound and audio focus
+        AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                .build();
+        exoPlayer.setAudioAttributes(audioAttributes, true /* handleAudioFocus */);
+        exoPlayer.setVolume(1.0f);
+
+        // Always enable and show English subtitles by default
+        exoPlayer.setTrackSelectionParameters(
+                exoPlayer.getTrackSelectionParameters().buildUpon()
+                        .setPreferredTextLanguage("en")
+                        .setSelectUndeterminedTextLanguage(true)
+                        .build()
+        );
+
+        // Style subtitles with high-contrast outline and clear font
+        if (exoPlayerView.getSubtitleView() != null) {
+            CaptionStyleCompat style = new CaptionStyleCompat(
+                    Color.WHITE,
+                    Color.argb(180, 0, 0, 0),
+                    Color.TRANSPARENT,
+                    CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                    Color.BLACK,
+                    null
+            );
+            exoPlayerView.getSubtitleView().setStyle(style);
+            exoPlayerView.getSubtitleView().setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, 18f);
+        }
+
         exoPlayer.addListener(new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int playbackState) {
@@ -393,7 +431,17 @@ public class PlayerActivity extends AppCompatActivity {
         ws.setMediaPlaybackRequiresUserGesture(false);
         ws.setAllowFileAccess(true);
         playerWebView.setWebChromeClient(new WebChromeClient());
-        playerWebView.setWebViewClient(new WebViewClient());
+        playerWebView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                view.evaluateJavascript(
+                        "(function(){" +
+                        "  var v = document.querySelector('video');" +
+                        "  if(v){ v.muted = false; v.volume = 1.0; }" +
+                        "})();", null);
+            }
+        });
     }
 
     private void setupDetails() {
@@ -471,17 +519,37 @@ public class PlayerActivity extends AppCompatActivity {
             exoPlayer.prepare();
             exoPlayer.play();
         } else if ("anime".equals(item.type)) {
-            // Fast native loading with ExoPlayer!
+            // Fast native loading with ExoPlayer + Subtitles + Stereo Audio!
             String fallbackEmbed = "https://animeembed.com/embed/ani/" + item.id + "/" + currentEpisode + "?accent=6366f1";
-            apiClient.resolveAnimeStream(item.id, currentEpisode, new ApiClient.ApiCallback<String>() {
+            apiClient.resolveAnimeStream(item.id, currentEpisode, new ApiClient.ApiCallback<ApiClient.StreamInfo>() {
                 @Override
-                public void onSuccess(String streamUrl) {
+                public void onSuccess(ApiClient.StreamInfo streamInfo) {
                     runOnUiThread(() -> {
                         try {
                             playerWebView.setVisibility(View.GONE);
                             exoPlayerView.setVisibility(View.VISIBLE);
-                            String fullUrl = streamUrl.startsWith("http") ? streamUrl : (apiClient.getServerUrl() + (streamUrl.startsWith("/") ? "" : "/") + streamUrl);
-                            MediaItem mediaItem = MediaItem.fromUri(Uri.parse(fullUrl));
+                            String fullUrl = streamInfo.streamUrl.startsWith("http")
+                                    ? streamInfo.streamUrl
+                                    : (apiClient.getServerUrl() + (streamInfo.streamUrl.startsWith("/") ? "" : "/") + streamInfo.streamUrl);
+
+                            MediaItem.Builder mediaItemBuilder = new MediaItem.Builder()
+                                    .setUri(Uri.parse(fullUrl));
+
+                            if (streamInfo.subtitleUrl != null && !streamInfo.subtitleUrl.isEmpty()) {
+                                String fullSubUrl = streamInfo.subtitleUrl.startsWith("http")
+                                        ? streamInfo.subtitleUrl
+                                        : (apiClient.getServerUrl() + (streamInfo.subtitleUrl.startsWith("/") ? "" : "/") + streamInfo.subtitleUrl);
+
+                                MediaItem.SubtitleConfiguration subConfig = new MediaItem.SubtitleConfiguration.Builder(Uri.parse(fullSubUrl))
+                                        .setMimeType(MimeTypes.TEXT_VTT)
+                                        .setLanguage("en")
+                                        .setLabel("English")
+                                        .setSelectionFlags(C.SELECTION_FLAG_DEFAULT | C.SELECTION_FLAG_FORCED)
+                                        .build();
+                                mediaItemBuilder.setSubtitleConfigurations(Collections.singletonList(subConfig));
+                            }
+
+                            MediaItem mediaItem = mediaItemBuilder.build();
                             exoPlayer.setMediaItem(mediaItem);
                             exoPlayer.prepare();
                             exoPlayer.play();
@@ -493,14 +561,11 @@ public class PlayerActivity extends AppCompatActivity {
 
                 @Override
                 public void onError(Exception e) {
-                    runOnUiThread(() -> {
-                        // Fallback gracefully to webview if server resolution fails
-                        fallbackToWebView(fallbackEmbed);
-                    });
+                    runOnUiThread(() -> fallbackToWebView(fallbackEmbed));
                 }
             });
         } else {
-            // For anime episodes or YouTube, use WebView player or direct stream
+            // For YouTube or others, use WebView player or direct stream
             String embedUrl;
             if ("youtube".equals(item.type)) {
                 embedUrl = "https://www.youtube-nocookie.com/embed/" + item.id + "?autoplay=1&enablejsapi=1";
